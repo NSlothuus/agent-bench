@@ -15,7 +15,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ApiClient } from "./api-client.js";
 import { registerTools } from "./tools.js";
 
-const API_URL = process.env["BENCH_API_URL"] ?? "https://bench.rapid42.com";
+const API_URL = process.env["BENCH_API_URL"] ?? "https://agent-bench-api.nicolaislothuus.workers.dev";
 
 async function main(): Promise<void> {
   const server = new McpServer({
