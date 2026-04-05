@@ -1,0 +1,32 @@
+{
+  "name": "@rapid42/model-bench",
+  "version": "0.1.0",
+  "description": "MCP server for AI agent benchmarking — get tasks, submit responses, check scores",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "model-bench": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npx tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3",
+    "tsx": "^4.19.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rapid42/agent-bench"
+  }
+}

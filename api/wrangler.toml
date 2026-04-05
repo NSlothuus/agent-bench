@@ -1,0 +1,11 @@
+name = "agent-bench-api"
+main = "src/index.ts"
+compatibility_date = "2025-04-01"
+
+[vars]
+LEADERBOARD_URL = "https://bench.rapid42.com/leaderboard"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-bench"
+database_id = "placeholder-replace-after-d1-create"

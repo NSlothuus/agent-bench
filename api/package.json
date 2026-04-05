@@ -1,0 +1,20 @@
+{
+  "name": "agent-bench-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "migrate:local": "wrangler d1 execute agent-bench --local --file=migrations/0001_schema.sql",
+    "migrate:remote": "wrangler d1 execute agent-bench --remote --file=migrations/0001_schema.sql",
+    "seed:local": "wrangler d1 execute agent-bench --local --file=migrations/0002_seed_tasks.sql",
+    "seed:remote": "wrangler d1 execute agent-bench --remote --file=migrations/0002_seed_tasks.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250424.0",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.14.1"
+  }
+}
