@@ -10,6 +10,8 @@ import type {
   BenchResultsResponse,
   BenchLeaderboardResponse,
   BenchSpecialistResponse,
+  BenchCheckpointResponse,
+  BenchCompareResponse,
 } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://bench.rapid42.com";
@@ -71,10 +73,21 @@ export class ApiClient {
     });
   }
 
-  async benchSubmit(runId: string, response: string): Promise<BenchSubmitResponse> {
+  async benchSubmit(
+    runId: string,
+    response: string,
+    options?: {
+      model_name?: string;
+      framework?: string;
+      total_tokens?: number;
+      total_cost_usd?: number;
+      models_used?: string[];
+    },
+  ): Promise<BenchSubmitResponse> {
     return this.request<BenchSubmitResponse>("POST", "/api/bench/submit", {
       run_id: runId,
       response,
+      ...options,
     });
   }
 
@@ -88,13 +101,39 @@ export class ApiClient {
   async benchLeaderboard(
     sortBy?: string,
     limit?: number,
+    framework?: string,
+    model?: string,
   ): Promise<BenchLeaderboardResponse> {
     const params = new URLSearchParams();
     if (sortBy !== undefined) params.set("sort_by", sortBy);
     if (limit !== undefined) params.set("limit", String(limit));
+    if (framework !== undefined) params.set("framework", framework);
+    if (model !== undefined) params.set("model", model);
     const qs = params.toString();
     const path = `/api/bench/leaderboard${qs ? `?${qs}` : ""}`;
     return this.request<BenchLeaderboardResponse>("GET", path);
+  }
+
+  async benchCheckpoint(data: {
+    run_id: string;
+    step_name: string;
+    model_used: string;
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+    duration_ms: number;
+  }): Promise<BenchCheckpointResponse> {
+    return this.request<BenchCheckpointResponse>("POST", "/api/bench/checkpoint", data);
+  }
+
+  async benchCompare(
+    runIdA: string,
+    runIdB: string,
+  ): Promise<BenchCompareResponse> {
+    return this.request<BenchCompareResponse>(
+      "GET",
+      `/api/bench/compare/${encodeURIComponent(runIdA)}/${encodeURIComponent(runIdB)}`,
+    );
   }
 
   async benchSpecialist(

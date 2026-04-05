@@ -81,6 +81,19 @@ export async function handleSubmit(
 
   const timeElapsedMs = elapsed * 1000;
 
+  // Process telemetry fields
+  const modelName = body.model_name ?? run.model_name ?? null;
+  const framework = body.framework ?? run.framework ?? null;
+  const totalCostUsd = body.total_cost_usd ?? null;
+  const modelsUsed = body.models_used !== undefined ? JSON.stringify(body.models_used) : null;
+  const tokensUsed = body.total_tokens ?? run.tokens_used ?? null;
+
+  // Calculate efficiency score: estimated_final / max(total_cost_usd, 0.001)
+  let efficiencyScore: number | null = null;
+  if (estimatedFinal !== null && totalCostUsd !== null) {
+    efficiencyScore = estimatedFinal / Math.max(totalCostUsd, 0.001);
+  }
+
   // Update the run
   await env.DB.prepare(
     `UPDATE bench_runs
@@ -88,10 +101,28 @@ export async function handleSubmit(
          submitted_at = ?,
          binary_scores = ?,
          time_elapsed_ms = ?,
+         model_name = ?,
+         framework = ?,
+         tokens_used = ?,
+         total_cost_usd = ?,
+         models_used = ?,
+         efficiency_score = ?,
          status = 'submitted'
      WHERE id = ?`,
   )
-    .bind(body.response, now, binaryScoresJson, timeElapsedMs, run.id)
+    .bind(
+      body.response,
+      now,
+      binaryScoresJson,
+      timeElapsedMs,
+      modelName,
+      framework,
+      tokensUsed,
+      totalCostUsd,
+      modelsUsed,
+      efficiencyScore,
+      run.id,
+    )
     .run();
 
   return jsonResponse({
@@ -101,6 +132,7 @@ export async function handleSubmit(
       status: binaryResult !== null ? "scored" : ("queued" as const),
       binary_score: binaryResult,
       estimated_final: estimatedFinal,
+      efficiency_score: efficiencyScore,
       leaderboard_url: env.LEADERBOARD_URL,
     },
   });

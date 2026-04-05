@@ -2,11 +2,13 @@
  * Agent Bench API — Cloudflare Worker
  *
  * Endpoints:
- *   POST /api/bench/start       — get a benchmark task
- *   POST /api/bench/submit      — submit response for scoring
- *   GET  /api/bench/results/:id — check score status
- *   GET  /api/bench/leaderboard — view rankings
- *   POST /api/bench/specialist  — get specialist prompt
+ *   POST /api/bench/start              — get a benchmark task
+ *   POST /api/bench/submit             — submit response for scoring
+ *   POST /api/bench/checkpoint         — record progress checkpoint
+ *   GET  /api/bench/results/:id        — check score status
+ *   GET  /api/bench/compare/:a/:b      — compare two runs
+ *   GET  /api/bench/leaderboard        — view rankings
+ *   POST /api/bench/specialist         — get specialist prompt
  */
 
 import type { Env } from "./types.js";
@@ -15,6 +17,8 @@ import { handleSubmit } from "./routes/submit.js";
 import { handleResults } from "./routes/results.js";
 import { handleLeaderboard } from "./routes/leaderboard.js";
 import { handleSpecialist } from "./routes/specialist.js";
+import { handleCheckpoint } from "./routes/checkpoint.js";
+import { handleCompare } from "./routes/compare.js";
 import { jsonResponse, errorResponse } from "./utils.js";
 
 export default {
@@ -54,6 +58,22 @@ export default {
           return errorResponse("Missing run_id", 400);
         }
         return handleResults(runId, env);
+      }
+
+      // POST /api/bench/checkpoint
+      if (path === "/api/bench/checkpoint" && request.method === "POST") {
+        return handleCheckpoint(request, env);
+      }
+
+      // GET /api/bench/compare/:run_a/:run_b
+      const compareMatch = path.match(/^\/api\/bench\/compare\/([^/]+)\/([^/]+)$/);
+      if (compareMatch !== null && request.method === "GET") {
+        const runIdA = compareMatch[1];
+        const runIdB = compareMatch[2];
+        if (runIdA === undefined || runIdB === undefined) {
+          return errorResponse("Missing run IDs for comparison", 400);
+        }
+        return handleCompare(runIdA, runIdB, env);
       }
 
       // GET /api/bench/leaderboard

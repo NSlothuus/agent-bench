@@ -40,6 +40,22 @@ export interface RunRow {
   ip_hash: string | null;
   status: string;
   created_at: number;
+  // Phase 2 telemetry columns
+  models_used: string | null; // JSON array
+  total_cost_usd: number | null;
+  efficiency_score: number | null;
+}
+
+export interface CheckpointRow {
+  id: number;
+  run_id: string;
+  step_name: string;
+  model_used: string | null;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+  duration_ms: number;
+  created_at: number;
 }
 
 // API request bodies
@@ -50,6 +66,21 @@ export interface StartRequestBody {
 export interface SubmitRequestBody {
   run_id: string;
   response: string;
+  model_name?: string;
+  framework?: string;
+  total_tokens?: number;
+  total_cost_usd?: number;
+  models_used?: string[];
+}
+
+export interface CheckpointRequestBody {
+  run_id: string;
+  step_name: string;
+  model_used: string;
+  tokens_in: number;
+  tokens_out: number;
+  cost_usd: number;
+  duration_ms: number;
 }
 
 export interface SpecialistRequestBody {
