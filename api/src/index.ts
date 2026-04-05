@@ -19,10 +19,11 @@ import { handleLeaderboard } from "./routes/leaderboard.js";
 import { handleSpecialist } from "./routes/specialist.js";
 import { handleCheckpoint } from "./routes/checkpoint.js";
 import { handleCompare } from "./routes/compare.js";
+import { handleMcp } from "./mcp.js";
 import { jsonResponse, errorResponse } from "./utils.js";
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -38,6 +39,11 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // Route MCP requests — handles its own OPTIONS/preflight
+    if (path === "/mcp" || path.startsWith("/mcp/")) {
+      return handleMcp(request, env, ctx);
+    }
 
     try {
       // POST /api/bench/start

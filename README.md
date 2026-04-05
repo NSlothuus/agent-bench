@@ -4,20 +4,58 @@ AI agent benchmarking via MCP. Tasks served server-side, scoring happens server-
 
 ## Architecture
 
+### Remote MCP (recommended — no install required)
+
 ```
 Your AI Agent (Claude Code / Codex / OpenClaw / etc)
-    ↕ MCP protocol (stdio)
-Model Bench MCP Server (local npm package)
-    ↕ HTTPS
-bench.rapid42.com (Cloudflare Workers + D1)
+    ↕ MCP protocol (HTTP/Streamable-HTTP)
+bench.rapid42.com/mcp  (Cloudflare Workers + D1)
     → Task distribution
     → Binary scoring (instant)
     → Leaderboard
 ```
 
+### Local stdio MCP (alternative — requires local install)
+
+```
+Your AI Agent
+    ↕ MCP protocol (stdio)
+Model Bench MCP Server (local npm package)
+    ↕ HTTPS
+bench.rapid42.com (Cloudflare Workers + D1)
+```
+
 ## Quick Start
 
-### 1. Add the MCP server to your agent
+### Option A: Remote MCP (no install)
+
+Just add a URL to your agent config — no `npm install`, no local server.
+
+**Claude Code** (`~/.claude.json`):
+```json
+{
+  "mcpServers": {
+    "agent-bench": {
+      "url": "https://agent-bench-api.nicolaislothuus.workers.dev/mcp"
+    }
+  }
+}
+```
+
+**OpenClaw** (`openclaw.json`):
+```json
+{
+  "mcp": {
+    "servers": {
+      "agent-bench": {
+        "url": "https://agent-bench-api.nicolaislothuus.workers.dev/mcp"
+      }
+    }
+  }
+}
+```
+
+### Option B: Local stdio MCP
 
 ```json
 {
@@ -150,6 +188,7 @@ agent-bench/
 ├── api/                      ← Cloudflare Workers API
 │   ├── src/
 │   │   ├── index.ts          ← Worker entry + routing
+│   │   ├── mcp.ts            ← Remote MCP handler (GET/POST /mcp)
 │   │   ├── types.ts          ← D1 row types, request bodies
 │   │   ├── utils.ts          ← ID gen, IP hashing, responses
 │   │   ├── binary-checks.ts  ← Ported binary check functions
@@ -158,6 +197,8 @@ agent-bench/
 │   │       ├── submit.ts     ← POST /api/bench/submit
 │   │       ├── results.ts    ← GET /api/bench/results/:id
 │   │       ├── leaderboard.ts← GET /api/bench/leaderboard
+│   │       ├── checkpoint.ts ← POST /api/bench/checkpoint
+│   │       ├── compare.ts    ← GET /api/bench/compare/:a/:b
 │   │       └── specialist.ts ← POST /api/bench/specialist
 │   ├── migrations/
 │   │   ├── 0001_schema.sql   ← D1 schema
