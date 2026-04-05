@@ -232,7 +232,8 @@ function createServer(env: Env, clientIp: string): McpServer {
                total_cost_usd = ?,
                models_used = ?,
                efficiency_score = ?,
-               status = 'submitted'
+               status = 'scored',
+               final_composite = ?
            WHERE id = ?`,
         )
           .bind(
@@ -246,6 +247,7 @@ function createServer(env: Env, clientIp: string): McpServer {
             totalCostUsd,
             modelsUsedJson,
             efficiencyScore,
+            estimatedFinal ?? null,
             run.id,
           )
           .run();
