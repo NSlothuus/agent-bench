@@ -7,7 +7,7 @@ import type { Env, TaskRow, StartRequestBody } from "../types.js";
 import { generateId, hashIp, jsonResponse, errorResponse } from "../utils.js";
 
 const VALID_CATEGORIES = ["code", "writing", "reasoning", "design", "multi-step", "safety"];
-const MAX_RUNS_PER_HOUR = 10;
+const MAX_RUNS_PER_HOUR = 100;
 
 export async function handleStart(
   request: Request,

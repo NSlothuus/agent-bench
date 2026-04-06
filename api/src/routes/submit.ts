@@ -107,7 +107,8 @@ export async function handleSubmit(
          total_cost_usd = ?,
          models_used = ?,
          efficiency_score = ?,
-         status = 'submitted'
+         status = 'scored',
+         final_composite = ?
      WHERE id = ?`,
   )
     .bind(
@@ -121,6 +122,7 @@ export async function handleSubmit(
       totalCostUsd,
       modelsUsed,
       efficiencyScore,
+      estimatedFinal ?? null,
       run.id,
     )
     .run();

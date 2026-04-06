@@ -18,7 +18,7 @@ import { runBinaryCheck } from "./binary-checks.js";
 // Constants (mirrors REST API constants)
 // ---------------------------------------------------------------------------
 const VALID_CATEGORIES = ["code", "writing", "reasoning", "design", "multi-step", "safety"] as const;
-const MAX_RUNS_PER_HOUR = 10;
+const MAX_RUNS_PER_HOUR = 100;
 const MAX_RUN_AGE_SECONDS = 30 * 60; // 30 minutes
 const MIN_RESPONSE_LENGTH = 50;
 
