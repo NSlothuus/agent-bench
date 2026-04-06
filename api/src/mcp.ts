@@ -845,6 +845,121 @@ Core principles:
     },
   );
 
+  // ---- bench_all (get ALL tasks + submit ALL answers in one call) --------
+  server.tool(
+    "bench_all",
+    "Run the FULL benchmark suite. Returns all tasks at once. You must solve each task and provide all your answers in one response. The response should be formatted as sections separated by === TASK: <category> === headers.",
+    {
+      model_name: z.string().optional().describe("Model name (e.g. gemma-4-26b)"),
+      framework: z.string().optional().describe("Framework (e.g. lm-studio)"),
+      response: z.string().min(100).describe("Your answers to ALL tasks. Format each answer with a header: === TASK: code === then your code review answer, === TASK: writing === then your blog post, etc."),
+    },
+    async ({ model_name, framework, response }) => {
+      try {
+        const tasks = await env.DB.prepare(
+          "SELECT id, category, title, prompt, binary_check_fn FROM bench_tasks WHERE active = 1 ORDER BY category",
+        ).all<{ id: string; category: string; title: string; prompt: string; binary_check_fn: string | null }>();
+
+        if (!tasks.results || tasks.results.length === 0) {
+          return { content: [{ type: "text" as const, text: "Error: no tasks found" }], isError: true };
+        }
+
+        // Parse the response into per-task answers
+        const sections = response.split(/===\s*TASK:\s*/i).filter(Boolean);
+        const answers: Record<string, string> = {};
+        for (const section of sections) {
+          const match = section.match(/^(\w[\w-]*)\s*===?\s*\n?(.*)/s);
+          if (match) {
+            answers[(match[1] ?? "").toLowerCase().trim()] = (match[2] ?? "").trim();
+          }
+        }
+
+        const { runBinaryCheck } = await import("./binary-checks.js");
+        const now = Math.floor(Date.now() / 1000);
+        const results: Array<{ task: string; category: string; score: number | null; details: unknown }> = [];
+
+        for (const task of tasks.results) {
+          const answer = answers[task.category] || answers[task.id] || "";
+          if (!answer || answer.length < 20) {
+            results.push({ task: task.id, category: task.category, score: 0, details: "No answer provided" });
+            continue;
+          }
+
+          const binaryResult = task.binary_check_fn ? runBinaryCheck(task.binary_check_fn, answer) : null;
+          let score: number | null = null;
+          if (binaryResult?.adjustments) {
+            const adj = binaryResult.adjustments as Record<string, number>;
+            if (adj.judgment_override !== undefined) score = adj.judgment_override;
+            else if (adj.correctness_floor !== undefined) score = adj.correctness_floor;
+            else if (adj.correctness_ceiling !== undefined) score = adj.correctness_ceiling;
+          }
+
+          // Save each as a run
+          const runId = `${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`;
+          await env.DB.prepare(
+            `INSERT INTO bench_runs (id, task_id, category, started_at, submitted_at, response, binary_scores, final_composite, time_elapsed_ms, model_name, framework, status, ip_hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'scored', 'mcp-suite')`,
+          ).bind(runId, task.id, task.category, now, now, answer, binaryResult ? JSON.stringify(binaryResult) : null, score, model_name ?? null, framework ?? null).run();
+
+          results.push({ task: task.id, category: task.category, score, details: binaryResult?.details || {} });
+        }
+
+        // Calculate composite
+        const scored = results.filter(r => r.score !== null);
+        const avg = scored.length > 0 ? scored.reduce((s, r) => s + (r.score ?? 0), 0) / scored.length : 0;
+
+        const lines = [
+          `**Full Benchmark Complete**`,
+          ``,
+          `Model: ${model_name ?? "unknown"}`,
+          `Tasks scored: ${scored.length}/${tasks.results.length}`,
+          `Composite: ${avg.toFixed(1)}/10`,
+          ``,
+          `| Task | Category | Score |`,
+          `|------|----------|-------|`,
+          ...results.map(r => `| ${r.task} | ${r.category} | ${r.score ?? "N/A"}/10 |`),
+          ``,
+          `View leaderboard: https://bench.rapid42.com/leaderboard`,
+        ];
+
+        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true };
+      }
+    },
+  );
+
+  // ---- bench_tasks (list all available tasks so the model can see them) ----
+  server.tool(
+    "bench_tasks",
+    "List all available benchmark tasks with their prompts. Read these first, then use bench_all to submit all your answers at once.",
+    {},
+    async () => {
+      try {
+        const tasks = await env.DB.prepare(
+          "SELECT id, category, title, prompt FROM bench_tasks WHERE active = 1 ORDER BY category",
+        ).all<{ id: string; category: string; title: string; prompt: string }>();
+
+        if (!tasks.results?.length) {
+          return { content: [{ type: "text" as const, text: "No tasks available" }], isError: true };
+        }
+
+        const text = tasks.results.map(t =>
+          `=== TASK: ${t.category} ===\nTitle: ${t.title}\n\n${t.prompt}`
+        ).join("\n\n" + "=".repeat(60) + "\n\n");
+
+        return {
+          content: [{
+            type: "text" as const,
+            text: `**${tasks.results.length} Benchmark Tasks**\n\nRead all tasks below. Then call bench_all with your answers.\n\n${text}`,
+          }],
+        };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true };
+      }
+    },
+  );
+
   return server;
 }
 
@@ -865,3 +980,4 @@ export function handleMcp(
   const server = createServer(env, clientIp);
   return createMcpHandler(server)(request, env, ctx);
 }
+// This gets appended - we'll properly insert it
