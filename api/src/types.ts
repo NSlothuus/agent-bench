@@ -20,6 +20,7 @@ export interface TaskRow {
   active: number;
   version: number;
   created_at: number;
+  bench_type: string;
 }
 
 export interface RunRow {
@@ -44,6 +45,11 @@ export interface RunRow {
   models_used: string | null; // JSON array
   total_cost_usd: number | null;
   efficiency_score: number | null;
+  // Bench type columns
+  bench_type: string;
+  config_hash: string | null;
+  workspace_snapshot: string | null;
+  execution_trace: string | null;
 }
 
 export interface CheckpointRow {
@@ -58,9 +64,21 @@ export interface CheckpointRow {
   created_at: number;
 }
 
+export interface SetupRow {
+  id: string;
+  config_hash: string;
+  framework: string;
+  model_name: string | null;
+  description: string | null;
+  first_seen: number;
+  total_runs: number;
+  avg_score: number | null;
+}
+
 // API request bodies
 export interface StartRequestBody {
   category?: string;
+  bench_type?: "model" | "agent";
 }
 
 export interface SubmitRequestBody {
@@ -71,6 +89,12 @@ export interface SubmitRequestBody {
   total_tokens?: number;
   total_cost_usd?: number;
   models_used?: string[];
+}
+
+export interface AgentSubmitRequestBody extends SubmitRequestBody {
+  config_hash?: string;
+  workspace_snapshot?: string;
+  execution_trace?: string;
 }
 
 export interface CheckpointRequestBody {

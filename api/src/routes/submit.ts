@@ -3,9 +3,9 @@
  * Accept a response, run binary checks, return preliminary score.
  */
 
-import type { Env, RunRow, TaskRow, SubmitRequestBody } from "../types.js";
+import type { Env, RunRow, TaskRow, AgentSubmitRequestBody } from "../types.js";
 import { runBinaryCheck } from "../binary-checks.js";
-import { jsonResponse, errorResponse } from "../utils.js";
+import { generateId, jsonResponse, errorResponse } from "../utils.js";
 
 const MAX_RUN_AGE_SECONDS = 30 * 60; // 30 minutes
 const MIN_RESPONSE_LENGTH = 50;
@@ -14,7 +14,7 @@ export async function handleSubmit(
   request: Request,
   env: Env,
 ): Promise<Response> {
-  const body = (await request.json().catch(() => ({}))) as SubmitRequestBody;
+  const body = (await request.json().catch(() => ({}))) as AgentSubmitRequestBody;
 
   if (!body.run_id || typeof body.run_id !== "string") {
     return errorResponse("Missing or invalid run_id");
@@ -94,6 +94,11 @@ export async function handleSubmit(
     efficiencyScore = estimatedFinal / Math.max(totalCostUsd, 0.001);
   }
 
+  // Agent bench fields
+  const configHash = body.config_hash ?? null;
+  const workspaceSnapshot = body.workspace_snapshot ?? null;
+  const executionTrace = body.execution_trace ?? null;
+
   // Update the run
   await env.DB.prepare(
     `UPDATE bench_runs
@@ -108,7 +113,10 @@ export async function handleSubmit(
          models_used = ?,
          efficiency_score = ?,
          status = 'scored',
-         final_composite = ?
+         final_composite = ?,
+         config_hash = ?,
+         workspace_snapshot = ?,
+         execution_trace = ?
      WHERE id = ?`,
   )
     .bind(
@@ -123,9 +131,53 @@ export async function handleSubmit(
       modelsUsed,
       efficiencyScore,
       estimatedFinal ?? null,
+      configHash,
+      workspaceSnapshot,
+      executionTrace,
       run.id,
     )
     .run();
+
+  // Upsert bench_setups if config_hash is provided (agent bench)
+  if (configHash !== null) {
+    const existingSetup = await env.DB.prepare(
+      "SELECT id, total_runs, avg_score FROM bench_setups WHERE config_hash = ?",
+    )
+      .bind(configHash)
+      .first<{ id: string; total_runs: number; avg_score: number | null }>();
+
+    if (existingSetup !== null) {
+      // Update existing setup
+      const newTotalRuns = existingSetup.total_runs + 1;
+      const oldAvg = existingSetup.avg_score ?? 0;
+      const newAvg =
+        estimatedFinal !== null
+          ? (oldAvg * existingSetup.total_runs + estimatedFinal) / newTotalRuns
+          : oldAvg;
+
+      await env.DB.prepare(
+        "UPDATE bench_setups SET total_runs = ?, avg_score = ? WHERE id = ?",
+      )
+        .bind(newTotalRuns, newAvg, existingSetup.id)
+        .run();
+    } else {
+      // Insert new setup
+      const setupId = generateId();
+      await env.DB.prepare(
+        `INSERT INTO bench_setups (id, config_hash, framework, model_name, description, total_runs, avg_score)
+         VALUES (?, ?, ?, ?, ?, 1, ?)`,
+      )
+        .bind(
+          setupId,
+          configHash,
+          framework ?? "unknown",
+          modelName,
+          null,
+          estimatedFinal,
+        )
+        .run();
+    }
+  }
 
   return jsonResponse({
     success: true,

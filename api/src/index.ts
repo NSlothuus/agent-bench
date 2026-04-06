@@ -8,6 +8,7 @@
  *   GET  /api/bench/results/:id        — check score status
  *   GET  /api/bench/compare/:a/:b      — compare two runs
  *   GET  /api/bench/leaderboard        — view rankings
+ *   GET  /api/bench/setups             — view agent setup rankings
  *   POST /api/bench/specialist         — get specialist prompt
  */
 
@@ -21,11 +22,11 @@ import { handleLeaderboard } from "./routes/leaderboard.js";
 import { handleSpecialist } from "./routes/specialist.js";
 import { handleCheckpoint } from "./routes/checkpoint.js";
 import { handleCompare } from "./routes/compare.js";
-import { handleMcp } from "./mcp.js";
+import { handleSetups } from "./routes/setups.js";
 import { jsonResponse, errorResponse } from "./utils.js";
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     // Handle CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, {
@@ -41,11 +42,6 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
-
-    // Route MCP requests — handles its own OPTIONS/preflight
-    if (path === "/mcp" || path.startsWith("/mcp/")) {
-      return handleMcp(request, env, ctx);
-    }
 
     try {
       // POST /api/bench/start
@@ -89,6 +85,11 @@ export default {
         return handleLeaderboard(request, env);
       }
 
+      // GET /api/bench/setups
+      if (path === "/api/bench/setups" && request.method === "GET") {
+        return handleSetups(request, env);
+      }
+
       // POST /api/bench/specialist
       if (path === "/api/bench/specialist" && request.method === "POST") {
         return handleSpecialist(request, env);
@@ -98,7 +99,7 @@ export default {
       if (path === "/health") {
         return jsonResponse({
           success: true,
-          data: { service: "agent-bench-api", version: "0.2.0", status: "ok" },
+          data: { service: "agent-bench-api", version: "0.3.0", status: "ok" },
         });
       }
 

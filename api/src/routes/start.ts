@@ -6,7 +6,8 @@
 import type { Env, TaskRow, StartRequestBody } from "../types.js";
 import { generateId, hashIp, jsonResponse, errorResponse } from "../utils.js";
 
-const VALID_CATEGORIES = ["code", "writing", "reasoning", "design", "multi-step", "safety"];
+const MODEL_CATEGORIES = ["code", "writing", "reasoning", "design", "multi-step", "safety"];
+const AGENT_CATEGORIES = ["coding", "research", "ops", "recovery", "planning"];
 const MAX_RUNS_PER_HOUR = 100;
 
 export async function handleStart(
@@ -15,10 +16,17 @@ export async function handleStart(
 ): Promise<Response> {
   const body = (await request.json().catch(() => ({}))) as StartRequestBody;
 
+  const benchType = body.bench_type ?? "model";
+  if (benchType !== "model" && benchType !== "agent") {
+    return errorResponse(`Invalid bench_type: ${benchType}. Valid: model, agent`);
+  }
+
+  const validCategories = benchType === "model" ? MODEL_CATEGORIES : AGENT_CATEGORIES;
+
   // Validate category if provided
-  if (body.category !== undefined && !VALID_CATEGORIES.includes(body.category)) {
+  if (body.category !== undefined && !validCategories.includes(body.category)) {
     return errorResponse(
-      `Invalid category: ${body.category}. Valid: ${VALID_CATEGORIES.join(", ")}`,
+      `Invalid category for ${benchType} bench: ${body.category}. Valid: ${validCategories.join(", ")}`,
     );
   }
 
@@ -37,24 +45,23 @@ export async function handleStart(
     return errorResponse("Rate limit exceeded. Max 10 runs per hour.", 429);
   }
 
-  // Pick a random active task
+  // Pick a random active task filtered by bench_type
   let taskQuery: string;
   let taskBindings: string[];
 
   if (body.category !== undefined) {
     taskQuery =
-      "SELECT * FROM bench_tasks WHERE active = 1 AND category = ? ORDER BY RANDOM() LIMIT 1";
-    taskBindings = [body.category];
+      "SELECT * FROM bench_tasks WHERE active = 1 AND bench_type = ? AND category = ? ORDER BY RANDOM() LIMIT 1";
+    taskBindings = [benchType, body.category];
   } else {
-    taskQuery = "SELECT * FROM bench_tasks WHERE active = 1 ORDER BY RANDOM() LIMIT 1";
-    taskBindings = [];
+    taskQuery =
+      "SELECT * FROM bench_tasks WHERE active = 1 AND bench_type = ? ORDER BY RANDOM() LIMIT 1";
+    taskBindings = [benchType];
   }
 
-  const stmt = env.DB.prepare(taskQuery);
-  const task =
-    taskBindings.length > 0
-      ? await stmt.bind(...taskBindings).first<TaskRow>()
-      : await stmt.first<TaskRow>();
+  const task = await env.DB.prepare(taskQuery)
+    .bind(...taskBindings)
+    .first<TaskRow>();
 
   if (task === null) {
     return errorResponse("No tasks available for the requested category.", 404);
@@ -73,10 +80,10 @@ export async function handleStart(
   else if (userAgent.includes("codex")) framework = "codex";
 
   await env.DB.prepare(
-    `INSERT INTO bench_runs (id, task_id, category, framework, started_at, ip_hash, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'started')`,
+    `INSERT INTO bench_runs (id, task_id, category, framework, started_at, ip_hash, status, bench_type)
+     VALUES (?, ?, ?, ?, ?, ?, 'started', ?)`,
   )
-    .bind(runId, task.id, task.category, framework, startedAt, ipHash)
+    .bind(runId, task.id, task.category, framework, startedAt, ipHash, benchType)
     .run();
 
   return jsonResponse({
@@ -86,6 +93,7 @@ export async function handleStart(
       task_id: task.id,
       task_prompt: task.prompt,
       category: task.category,
+      bench_type: benchType,
       started_at: new Date(startedAt * 1000).toISOString(),
     },
   });

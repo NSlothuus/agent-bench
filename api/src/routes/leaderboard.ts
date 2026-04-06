@@ -1,6 +1,6 @@
 /**
  * GET /api/bench/leaderboard
- * Return ranked leaderboard entries.
+ * Return ranked leaderboard entries filtered by bench_type.
  */
 
 import type { Env } from "../types.js";
@@ -16,7 +16,16 @@ interface LeaderboardRow {
   total_cost_usd: number | null;
 }
 
-const VALID_SORT_BY = ["quality", "speed", "efficiency", "cost"] as const;
+interface SetupLeaderboardRow {
+  config_hash: string;
+  framework: string | null;
+  avg_score: number;
+  run_count: number;
+  model_name: string | null;
+  description: string | null;
+}
+
+const VALID_SORT_BY = ["quality", "speed", "efficiency", "cost", "setup"] as const;
 
 export async function handleLeaderboard(
   request: Request,
@@ -27,12 +36,18 @@ export async function handleLeaderboard(
   const limitParam = url.searchParams.get("limit") ?? "10";
   const frameworkFilter = url.searchParams.get("framework");
   const modelFilter = url.searchParams.get("model");
+  const benchType = url.searchParams.get("bench_type") ?? "model";
 
   const sortBy = VALID_SORT_BY.includes(sortByParam as (typeof VALID_SORT_BY)[number])
     ? sortByParam
     : "quality";
 
   const limit = Math.min(Math.max(parseInt(limitParam, 10) || 10, 1), 50);
+
+  // Setup leaderboard mode: group by config_hash for agent bench
+  if (sortBy === "setup" && benchType === "agent") {
+    return handleSetupLeaderboard(env, limit, frameworkFilter);
+  }
 
   // Determine sort column
   let orderBy: string;
@@ -56,8 +71,9 @@ export async function handleLeaderboard(
     "status IN ('scored', 'submitted')",
     "model_name IS NOT NULL",
     "final_composite IS NOT NULL",
+    "bench_type = ?",
   ];
-  const bindings: (string | number)[] = [];
+  const bindings: (string | number)[] = [benchType];
 
   if (frameworkFilter !== null) {
     whereClauses.push("framework = ?");
@@ -87,9 +103,7 @@ export async function handleLeaderboard(
   const countStmt = env.DB.prepare(
     `SELECT COUNT(*) as total FROM bench_runs WHERE ${whereStr}`,
   );
-  const countResult = countBindings.length > 0
-    ? await countStmt.bind(...countBindings).first<{ total: number }>()
-    : await countStmt.first<{ total: number }>();
+  const countResult = await countStmt.bind(...countBindings).first<{ total: number }>();
 
   const entries = rows.results.map((row, index) => ({
     model: row.model_name ?? "unknown",
@@ -105,8 +119,70 @@ export async function handleLeaderboard(
   return jsonResponse({
     success: true,
     data: {
+      bench_type: benchType,
       entries,
       total: countResult?.total ?? 0,
+    },
+  });
+}
+
+async function handleSetupLeaderboard(
+  env: Env,
+  limit: number,
+  frameworkFilter: string | null,
+): Promise<Response> {
+  const whereClauses: string[] = [
+    "r.bench_type = 'agent'",
+    "r.status = 'scored'",
+    "r.config_hash IS NOT NULL",
+    "r.final_composite IS NOT NULL",
+  ];
+  const bindings: (string | number)[] = [];
+
+  if (frameworkFilter !== null) {
+    whereClauses.push("r.framework = ?");
+    bindings.push(frameworkFilter);
+  }
+
+  bindings.push(limit);
+
+  const whereStr = whereClauses.join(" AND ");
+
+  const rows = await env.DB.prepare(
+    `SELECT
+       r.config_hash,
+       r.framework,
+       AVG(r.final_composite) as avg_score,
+       COUNT(*) as run_count,
+       s.model_name,
+       s.description
+     FROM bench_runs r
+     LEFT JOIN bench_setups s ON r.config_hash = s.config_hash
+     WHERE ${whereStr}
+     GROUP BY r.config_hash
+     ORDER BY avg_score DESC
+     LIMIT ?`,
+  )
+    .bind(...bindings)
+    .all<SetupLeaderboardRow>();
+
+  const entries = rows.results.map((row, index) => ({
+    rank: index + 1,
+    config_hash: row.config_hash,
+    framework: row.framework ?? undefined,
+    avg_score: row.avg_score ?? 0,
+    run_count: row.run_count ?? 0,
+    model_name: row.model_name ?? undefined,
+    description: row.description ?? undefined,
+  }));
+
+  return jsonResponse({
+    success: true,
+    data: {
+      bench_type: "agent",
+      mode: "setup",
+      entries,
+      total: rows.results.length,
     },
   });
 }

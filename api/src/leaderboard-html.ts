@@ -44,7 +44,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     padding: 0 24px;
   }
 
-  /* Header */
   header {
     padding: 48px 0 32px;
     border-bottom: 1px solid var(--border-subtle);
@@ -98,7 +97,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     max-width: 600px;
   }
 
-  /* Tabs */
   .tabs {
     display: flex;
     gap: 8px;
@@ -126,7 +124,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     color: white;
   }
 
-  /* Filters */
   .filters {
     display: flex;
     gap: 12px;
@@ -167,7 +164,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     color: white;
   }
 
-  /* Table */
   .table-wrapper {
     overflow-x: auto;
     border: 1px solid var(--border-subtle);
@@ -206,7 +202,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
 
   thead th:hover { color: var(--text-secondary); }
   thead th.sorted { color: var(--accent); }
-  thead th .sort-arrow { margin-left: 4px; font-size: 10px; }
 
   tbody tr {
     cursor: pointer;
@@ -227,49 +222,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     min-width: 160px;
   }
 
-  .model-provider {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-weight: 500;
-    margin-left: 8px;
-  }
-
-  .provider-local {
-    background: var(--green-dim);
-    color: var(--green);
-  }
-
-  .provider-api {
-    background: var(--blue-dim);
-    color: var(--blue);
-  }
-
-  .score {
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
-  }
-
-  .score-high { color: var(--green); }
-  .score-mid { color: var(--yellow); }
-  .score-low { color: var(--red); }
-
-  .uplift {
-    font-size: 12px;
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
-
-  .uplift-high { background: var(--green-dim); color: var(--green); }
-  .uplift-mid { background: var(--yellow-dim); color: var(--yellow); }
-  .uplift-low { background: var(--blue-dim); color: var(--blue); }
-
-  .quant-badge {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-  }
-
   .framework-badge {
     font-size: 11px;
     padding: 2px 8px;
@@ -285,7 +237,15 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
   .framework-openclaw { background: rgba(99,102,241,0.12); color: var(--accent); border-color: transparent; }
   .framework-api { background: var(--yellow-dim); color: var(--yellow); border-color: transparent; }
 
-  /* Expanded Row */
+  .score {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  .score-high { color: var(--green); }
+  .score-mid { color: var(--yellow); }
+  .score-low { color: var(--red); }
+
   .detail-row td {
     padding: 0;
     border-bottom: 1px solid var(--border) !important;
@@ -345,7 +305,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
   .bar-yellow { background: var(--yellow); }
   .bar-red { background: var(--red); }
 
-  /* Empty & Loading States */
   .state-msg {
     text-align: center;
     padding: 48px 24px;
@@ -378,7 +337,8 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
 
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Footer */
+  .hidden { display: none; }
+
   footer {
     padding: 32px 0;
     border-top: 1px solid var(--border-subtle);
@@ -390,7 +350,6 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
   footer a { color: var(--accent); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
 
-  /* Responsive */
   @media (max-width: 768px) {
     header { padding: 24px 0 16px; }
     .header-top { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -412,17 +371,18 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
         <div class="logo-mark">R</div>
         <div class="logo-text">Rapid42 <span>Benchmark</span></div>
       </div>
-      <div class="version-badge">v2.0</div>
+      <div class="version-badge">v3.0</div>
     </div>
     <p>Benchmark any AI model or agent setup. Server-judged. Anti-cheat.</p>
   </header>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="model">Model Bench</button>
-    <button class="tab-btn" data-tab="agent">Agent Bench</button>
+    <button class="tab-btn active" data-tab="model">Models</button>
+    <button class="tab-btn" data-tab="agent">Agent Setups</button>
   </div>
 
-  <div class="filters">
+  <!-- Model filters -->
+  <div class="filters" id="model-filters">
     <span class="filter-label">Framework</span>
     <div class="filter-group" id="framework-filters">
       <button class="filter-btn active" data-filter="all">All</button>
@@ -433,23 +393,33 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     </div>
   </div>
 
-  <div class="table-wrapper">
-    <table id="leaderboard">
+  <!-- Agent filters -->
+  <div class="filters hidden" id="agent-filters">
+    <span class="filter-label">Framework</span>
+    <div class="filter-group" id="agent-framework-filters">
+      <button class="filter-btn active" data-filter="all">All</button>
+      <button class="filter-btn" data-filter="claude-code">Claude Code</button>
+      <button class="filter-btn" data-filter="openclaw">OpenClaw</button>
+      <button class="filter-btn" data-filter="codex">Codex</button>
+    </div>
+  </div>
+
+  <!-- Model leaderboard table -->
+  <div class="table-wrapper" id="model-table-wrapper">
+    <table id="model-leaderboard">
       <thead>
         <tr>
           <th data-sort="rank">#</th>
           <th data-sort="model">Model</th>
           <th data-sort="framework">Framework</th>
-          <th data-sort="score" class="sorted">Score ↓</th>
-          <th data-sort="vanilla">Vanilla</th>
-          <th data-sort="specialist">Specialist</th>
-          <th data-sort="uplift">Uplift</th>
+          <th data-sort="score" class="sorted">Score \\u2193</th>
           <th data-sort="time">Time</th>
           <th data-sort="tokens">Tokens</th>
+          <th data-sort="cost">Cost</th>
         </tr>
       </thead>
-      <tbody id="table-body">
-        <tr><td colspan="9">
+      <tbody id="model-table-body">
+        <tr><td colspan="7">
           <div class="state-msg">
             <div class="spinner"></div>
             <div class="title">Loading leaderboard...</div>
@@ -459,19 +429,44 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     </table>
   </div>
 
+  <!-- Agent setups leaderboard table -->
+  <div class="table-wrapper hidden" id="agent-table-wrapper">
+    <table id="agent-leaderboard">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Setup</th>
+          <th>Framework</th>
+          <th>Model</th>
+          <th>Avg Score</th>
+          <th>Runs</th>
+        </tr>
+      </thead>
+      <tbody id="agent-table-body">
+        <tr><td colspan="6">
+          <div class="state-msg">
+            <div class="spinner"></div>
+            <div class="title">Loading agent setups...</div>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
   <footer>
-    <p>Built by <a href="https://rapid42.com">Rapid42</a> · Server-judged scoring with anti-cheat · <a href="https://github.com/NSlothuus/agent-bench">Source</a></p>
+    <p>Built by <a href="https://rapid42.com">Rapid42</a> \\u00B7 Server-judged scoring with anti-cheat \\u00B7 <a href="https://github.com/NSlothuus/agent-bench">Source</a></p>
   </footer>
 </div>
 
 <script>
 (function() {
-  let data = [];
-  let sortKey = 'score';
-  let sortAsc = false;
-  let frameworkFilter = 'all';
-  let activeTab = 'model';
-  let expandedRow = null;
+  var modelData = [];
+  var agentData = [];
+  var activeTab = 'model';
+  var modelSortKey = 'score';
+  var modelSortAsc = false;
+  var frameworkFilter = 'all';
+  var agentFrameworkFilter = 'all';
 
   function scoreClass(v) {
     if (v >= 7.5) return 'score-high';
@@ -487,7 +482,7 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
 
   function frameworkClass(fw) {
     if (!fw) return '';
-    const f = fw.toLowerCase().replace(/[^a-z]/g, '-');
+    var f = fw.toLowerCase().replace(/[^a-z]/g, '-');
     if (f.includes('lm-studio') || f.includes('lmstudio')) return 'framework-lm-studio';
     if (f.includes('ollama')) return 'framework-ollama';
     if (f.includes('openclaw')) return 'framework-openclaw';
@@ -497,22 +492,24 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
   function frameworkMatch(fw, filter) {
     if (filter === 'all') return true;
     if (!fw) return filter === 'api';
-    const f = fw.toLowerCase();
+    var f = fw.toLowerCase();
     if (filter === 'lm-studio') return f.includes('lm-studio') || f.includes('lmstudio');
     if (filter === 'ollama') return f.includes('ollama');
     if (filter === 'openclaw') return f.includes('openclaw');
+    if (filter === 'claude-code') return f.includes('claude-code') || f.includes('claude_code');
+    if (filter === 'codex') return f.includes('codex');
     if (filter === 'api') return !f.includes('lm-studio') && !f.includes('lmstudio') && !f.includes('ollama') && !f.includes('openclaw');
     return true;
   }
 
   function formatTime(ms) {
-    if (!ms) return '—';
+    if (!ms) return '\\u2014';
     if (ms < 1000) return ms + 'ms';
     return (ms / 1000).toFixed(1) + 's';
   }
 
   function formatTokens(t) {
-    if (!t) return '—';
+    if (!t) return '\\u2014';
     if (t >= 1000) return (t / 1000).toFixed(1) + 'K';
     return t.toString();
   }
@@ -520,46 +517,43 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
   function getSortValue(entry, key) {
     switch (key) {
       case 'rank': return entry._rank || 0;
-      case 'model': return (entry.model_name || entry.model || '').toLowerCase();
+      case 'model': return (entry.model || '').toLowerCase();
       case 'framework': return (entry.framework || '').toLowerCase();
       case 'score': return entry.score || 0;
-      case 'vanilla': return entry.score || 0;
-      case 'specialist': return entry.score || 0;
-      case 'uplift': return 0;
       case 'time': return entry.time_ms || 0;
       case 'tokens': return entry.tokens || 0;
+      case 'cost': return entry.cost_usd || 999999;
       default: return 0;
     }
   }
 
-  function render() {
-    let filtered = data.filter(function(e) {
-      if (!frameworkMatch(e.framework, frameworkFilter)) return false;
-      return true;
+  function renderModelTable() {
+    var filtered = modelData.filter(function(e) {
+      return frameworkMatch(e.framework, frameworkFilter);
     });
 
     filtered.sort(function(a, b) {
-      var av = getSortValue(a, sortKey), bv = getSortValue(b, sortKey);
+      var av = getSortValue(a, modelSortKey);
+      var bv = getSortValue(b, modelSortKey);
       if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-      if (av < bv) return sortAsc ? -1 : 1;
-      if (av > bv) return sortAsc ? 1 : -1;
+      if (av < bv) return modelSortAsc ? -1 : 1;
+      if (av > bv) return modelSortAsc ? 1 : -1;
       return 0;
     });
 
-    var tbody = document.getElementById('table-body');
+    var tbody = document.getElementById('model-table-body');
     tbody.innerHTML = '';
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="9"><div class="state-msg"><div class="icon">\\u{1F3AF}</div><div class="title">No results yet</div><p>Be the first to benchmark a model! Run the CLI or connect via MCP.</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7"><div class="state-msg"><div class="icon">\\u{1F3AF}</div><div class="title">No results yet</div><p>Be the first to benchmark a model!</p></div></td></tr>';
       return;
     }
 
     filtered.forEach(function(entry, idx) {
       var s = entry.score != null ? entry.score : 0;
-      var modelName = entry.model_name || entry.model || 'unknown';
-      var fw = entry.framework || '—';
-      var costStr = entry.cost_usd != null ? '\\$' + entry.cost_usd.toFixed(4) : '—';
-      var effStr = entry.efficiency_score != null ? entry.efficiency_score.toFixed(1) : '—';
+      var modelName = entry.model || 'unknown';
+      var fw = entry.framework || '\\u2014';
+      var costStr = entry.cost_usd != null ? '\\$' + entry.cost_usd.toFixed(4) : '\\u2014';
 
       var tr = document.createElement('tr');
       tr.innerHTML =
@@ -567,61 +561,83 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
         '<td class="model-cell">' + modelName + '</td>' +
         '<td><span class="framework-badge ' + frameworkClass(fw) + '">' + fw + '</span></td>' +
         '<td class="score ' + scoreClass(s) + '">' + s.toFixed(1) + '</td>' +
-        '<td class="score ' + scoreClass(s) + '">' + s.toFixed(1) + '</td>' +
-        '<td class="score" style="color:var(--text-muted)">—</td>' +
-        '<td><span class="uplift" style="color:var(--text-muted)">—</span></td>' +
         '<td style="color:var(--text-secondary)">' + formatTime(entry.time_ms) + '</td>' +
-        '<td style="color:var(--text-secondary)">' + formatTokens(entry.tokens) + '</td>';
+        '<td style="color:var(--text-secondary)">' + formatTokens(entry.tokens) + '</td>' +
+        '<td style="color:var(--text-secondary)">' + costStr + '</td>';
 
-      tr.addEventListener('click', function() { toggleExpand(entry, tr, idx); });
+      tr.addEventListener('click', function() { toggleModelExpand(entry, tr, idx); });
       tbody.appendChild(tr);
     });
   }
 
-  function toggleExpand(entry, tr, idx) {
-    var existing = document.querySelector('.detail-row');
-    if (existing) existing.remove();
-    document.querySelectorAll('tr.expanded').forEach(function(r) { r.classList.remove('expanded'); });
+  var expandedModelRow = null;
 
-    var id = (entry.model_name || entry.model || '') + '-' + idx;
-    if (expandedRow === id) { expandedRow = null; return; }
-    expandedRow = id;
+  function toggleModelExpand(entry, tr, idx) {
+    var existing = document.querySelector('#model-table-wrapper .detail-row');
+    if (existing) existing.remove();
+    document.querySelectorAll('#model-table-wrapper tr.expanded').forEach(function(r) { r.classList.remove('expanded'); });
+
+    var id = (entry.model || '') + '-' + idx;
+    if (expandedModelRow === id) { expandedModelRow = null; return; }
+    expandedModelRow = id;
     tr.classList.add('expanded');
 
     var s = entry.score != null ? entry.score : 0;
-    var costStr = entry.cost_usd != null ? '\\$' + entry.cost_usd.toFixed(4) : '—';
-    var effStr = entry.efficiency_score != null ? entry.efficiency_score.toFixed(1) : '—';
-    var tokPerSec = (entry.tokens && entry.time_ms) ? (entry.tokens / (entry.time_ms / 1000)).toFixed(0) : '—';
+    var costStr = entry.cost_usd != null ? '\\$' + entry.cost_usd.toFixed(4) : '\\u2014';
+    var effStr = entry.efficiency_score != null ? entry.efficiency_score.toFixed(1) : '\\u2014';
+    var tokPerSec = (entry.tokens && entry.time_ms) ? (entry.tokens / (entry.time_ms / 1000)).toFixed(0) : '\\u2014';
 
     var detailTr = document.createElement('tr');
     detailTr.className = 'detail-row';
-    detailTr.innerHTML = '<td colspan="9">' +
-      '<div class="detail-content">' +
-        '<div class="detail-grid">' +
-          '<div class="detail-card">' +
-            '<h4>Run Info</h4>' +
-            '<div class="detail-row-item"><span class="label">Model</span><span class="value">' + (entry.model_name || entry.model || '—') + '</span></div>' +
-            '<div class="detail-row-item"><span class="label">Framework</span><span class="value">' + (entry.framework || '—') + '</span></div>' +
-            '<div class="detail-row-item"><span class="label">Cost</span><span class="value">' + costStr + '</span></div>' +
-            '<div class="detail-row-item"><span class="label">Efficiency</span><span class="value">' + effStr + '</span></div>' +
-            '<div class="detail-row-item"><span class="label">Tok/s</span><span class="value">' + tokPerSec + '</span></div>' +
-          '</div>' +
-          '<div class="detail-card">' +
-            '<h4>Overall Score</h4>' +
-            '<div class="detail-row-item"><span class="label">Score</span><span class="value score ' + scoreClass(s) + '">' + s.toFixed(1) + ' / 10</span></div>' +
-            '<div class="bar-container"><div class="bar ' + barClass(s) + '" style="width:' + (s * 10) + '%"></div></div>' +
-          '</div>' +
-          '<div class="detail-card">' +
-            '<h4>Performance</h4>' +
-            '<div class="detail-row-item"><span class="label">Total Time</span><span class="value">' + formatTime(entry.time_ms) + '</span></div>' +
-            '<div class="detail-row-item"><span class="label">Tokens Used</span><span class="value">' + formatTokens(entry.tokens) + '</span></div>' +
-            '<div class="detail-row-item"><span class="label">Tokens/sec</span><span class="value">' + tokPerSec + '</span></div>' +
-          '</div>' +
-        '</div>' +
+    detailTr.innerHTML = '<td colspan="7"><div class="detail-content"><div class="detail-grid">' +
+      '<div class="detail-card"><h4>Run Info</h4>' +
+        '<div class="detail-row-item"><span class="label">Model</span><span class="value">' + (entry.model || '\\u2014') + '</span></div>' +
+        '<div class="detail-row-item"><span class="label">Framework</span><span class="value">' + (entry.framework || '\\u2014') + '</span></div>' +
+        '<div class="detail-row-item"><span class="label">Cost</span><span class="value">' + costStr + '</span></div>' +
+        '<div class="detail-row-item"><span class="label">Efficiency</span><span class="value">' + effStr + '</span></div>' +
       '</div>' +
-    '</td>';
-
+      '<div class="detail-card"><h4>Score</h4>' +
+        '<div class="detail-row-item"><span class="label">Score</span><span class="value score ' + scoreClass(s) + '">' + s.toFixed(1) + ' / 10</span></div>' +
+        '<div class="bar-container"><div class="bar ' + barClass(s) + '" style="width:' + (s * 10) + '%"></div></div>' +
+      '</div>' +
+      '<div class="detail-card"><h4>Performance</h4>' +
+        '<div class="detail-row-item"><span class="label">Total Time</span><span class="value">' + formatTime(entry.time_ms) + '</span></div>' +
+        '<div class="detail-row-item"><span class="label">Tokens Used</span><span class="value">' + formatTokens(entry.tokens) + '</span></div>' +
+        '<div class="detail-row-item"><span class="label">Tokens/sec</span><span class="value">' + tokPerSec + '</span></div>' +
+      '</div>' +
+    '</div></div></td>';
     tr.after(detailTr);
+  }
+
+  function renderAgentTable() {
+    var filtered = agentData.filter(function(e) {
+      return frameworkMatch(e.framework, agentFrameworkFilter);
+    });
+
+    var tbody = document.getElementById('agent-table-body');
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6"><div class="state-msg"><div class="icon">\\u{1F916}</div><div class="title">No agent setups yet</div><p>Be the first to benchmark an agent setup!</p></div></td></tr>';
+      return;
+    }
+
+    filtered.forEach(function(entry, idx) {
+      var s = entry.avg_score != null ? entry.avg_score : 0;
+      var desc = entry.description || entry.config_hash.substring(0, 12) + '...';
+      var fw = entry.framework || '\\u2014';
+      var model = entry.model_name || '\\u2014';
+
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td style="color:var(--text-muted)">' + (idx + 1) + '</td>' +
+        '<td class="model-cell">' + desc + '</td>' +
+        '<td><span class="framework-badge ' + frameworkClass(fw) + '">' + fw + '</span></td>' +
+        '<td style="color:var(--text-secondary)">' + model + '</td>' +
+        '<td class="score ' + scoreClass(s) + '">' + s.toFixed(1) + '</td>' +
+        '<td style="color:var(--text-secondary)">' + entry.run_count + '</td>';
+      tbody.appendChild(tr);
+    });
   }
 
   // Tab switching
@@ -630,57 +646,95 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
       document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       activeTab = btn.dataset.tab;
-      expandedRow = null;
-      render();
+
+      var modelTableWrapper = document.getElementById('model-table-wrapper');
+      var agentTableWrapper = document.getElementById('agent-table-wrapper');
+      var modelFilters = document.getElementById('model-filters');
+      var agentFiltersEl = document.getElementById('agent-filters');
+
+      if (activeTab === 'model') {
+        modelTableWrapper.classList.remove('hidden');
+        agentTableWrapper.classList.add('hidden');
+        modelFilters.classList.remove('hidden');
+        agentFiltersEl.classList.add('hidden');
+        renderModelTable();
+      } else {
+        modelTableWrapper.classList.add('hidden');
+        agentTableWrapper.classList.remove('hidden');
+        modelFilters.classList.add('hidden');
+        agentFiltersEl.classList.remove('hidden');
+        loadAgentData();
+      }
     });
   });
 
-  // Sort
-  document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
+  // Model sort
+  document.querySelectorAll('#model-leaderboard thead th[data-sort]').forEach(function(th) {
     th.addEventListener('click', function() {
       var key = th.dataset.sort;
-      if (sortKey === key) { sortAsc = !sortAsc; }
-      else { sortKey = key; sortAsc = false; }
-      document.querySelectorAll('thead th').forEach(function(h) {
-        h.classList.remove('sorted');
-        var arrow = h.querySelector('.sort-arrow');
-        if (arrow) arrow.remove();
-      });
+      if (modelSortKey === key) { modelSortAsc = !modelSortAsc; }
+      else { modelSortKey = key; modelSortAsc = false; }
+      document.querySelectorAll('#model-leaderboard thead th').forEach(function(h) { h.classList.remove('sorted'); });
       th.classList.add('sorted');
-      var arrow = document.createElement('span');
-      arrow.className = 'sort-arrow';
-      arrow.textContent = sortAsc ? ' \\u2191' : ' \\u2193';
-      th.appendChild(arrow);
-      expandedRow = null;
-      render();
+      expandedModelRow = null;
+      renderModelTable();
     });
   });
 
-  // Framework filters
+  // Model framework filters
   document.getElementById('framework-filters').addEventListener('click', function(e) {
     if (!e.target.classList.contains('filter-btn')) return;
     document.querySelectorAll('#framework-filters .filter-btn').forEach(function(b) { b.classList.remove('active'); });
     e.target.classList.add('active');
     frameworkFilter = e.target.dataset.filter;
-    expandedRow = null;
-    render();
+    expandedModelRow = null;
+    renderModelTable();
   });
 
-  // Load data
-  fetch('/api/bench/leaderboard')
+  // Agent framework filters
+  document.getElementById('agent-framework-filters').addEventListener('click', function(e) {
+    if (!e.target.classList.contains('filter-btn')) return;
+    document.querySelectorAll('#agent-framework-filters .filter-btn').forEach(function(b) { b.classList.remove('active'); });
+    e.target.classList.add('active');
+    agentFrameworkFilter = e.target.dataset.filter;
+    renderAgentTable();
+  });
+
+  // Load model data
+  fetch('/api/bench/leaderboard?bench_type=model&limit=50')
     .then(function(r) { return r.json(); })
     .then(function(d) {
       var entries = (d.data && d.data.entries) || [];
-      data = entries.map(function(e, i) {
+      modelData = entries.map(function(e, i) {
         e._rank = e.rank || (i + 1);
         return e;
       });
-      render();
+      renderModelTable();
     })
     .catch(function() {
-      document.getElementById('table-body').innerHTML =
-        '<tr><td colspan="9"><div class="state-msg"><div class="icon">\\u26A0\\uFE0F</div><div class="title">Failed to load</div><p>Could not reach the leaderboard API. Try refreshing.</p></div></td></tr>';
+      document.getElementById('model-table-body').innerHTML =
+        '<tr><td colspan="7"><div class="state-msg"><div class="icon">\\u26A0\\uFE0F</div><div class="title">Failed to load</div><p>Could not reach the leaderboard API.</p></div></td></tr>';
     });
+
+  var agentLoaded = false;
+
+  function loadAgentData() {
+    if (agentLoaded) {
+      renderAgentTable();
+      return;
+    }
+    fetch('/api/bench/setups?limit=50')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        agentData = (d.data && d.data.entries) || [];
+        agentLoaded = true;
+        renderAgentTable();
+      })
+      .catch(function() {
+        document.getElementById('agent-table-body').innerHTML =
+          '<tr><td colspan="6"><div class="state-msg"><div class="icon">\\u26A0\\uFE0F</div><div class="title">Failed to load</div><p>Could not reach the setups API.</p></div></td></tr>';
+      });
+  }
 })();
 </script>
 
