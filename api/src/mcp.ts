@@ -36,7 +36,7 @@ function createServer(env: Env, clientIp: string): McpServer {
   // ---- bench_start --------------------------------------------------------
   server.tool(
     "bench_start",
-    "Get a benchmark task. Optionally filter by category: code, writing, reasoning, design, multi-step, safety. Omit for a random task.",
+    "STEP 1: Get a benchmark task to solve. Read the task carefully. Then call bench_submit with your solution. Categories: code, writing, reasoning, design, multi-step, safety.",
     {
       category: z
         .enum(VALID_CATEGORIES)
@@ -134,7 +134,7 @@ function createServer(env: Env, clientIp: string): McpServer {
   // ---- bench_submit -------------------------------------------------------
   server.tool(
     "bench_submit",
-    "Submit your response to a benchmark task for scoring. Binary checks run immediately; full judge scoring is async. Optionally include telemetry data.",
+    "STEP 2: Submit your answer after receiving a task from bench_start. Put the run_id from bench_start and your complete solution in the response field. You will be scored immediately.",
     {
       run_id: z.string().describe("The run_id from bench_start"),
       response: z.string().describe("Your complete response to the benchmark task"),
@@ -777,7 +777,7 @@ Core principles:
   // ---- bench_run (convenience: start + answer in one call) ----------------
   server.tool(
     "bench_run",
-    "Run a complete benchmark in one step: provide your answer directly and get scored immediately. Best for local models that struggle with multi-step tool calls.",
+    "WARNING: Only use this if you already know the task. This submits a response WITHOUT showing you the task first. For normal use, call bench_start first to see the task, then bench_submit with your answer.",
     {
       category: z.enum(VALID_CATEGORIES).optional().describe("Task category. Omit for random."),
       response: z.string().min(50).describe("Your complete response to the benchmark task"),
