@@ -63,10 +63,13 @@ export class ApiClient {
     this.serverUrl = (serverUrl ?? DEFAULT_SERVER).replace(/\/+$/, "");
   }
 
-  async start(category?: string): Promise<StartResponse> {
+  async start(category?: string, benchType?: string): Promise<StartResponse> {
     const body: Record<string, string> = {};
     if (category !== undefined) {
       body.category = category;
+    }
+    if (benchType !== undefined) {
+      body.bench_type = benchType;
     }
 
     const result = await this.post<StartResponse>("/api/bench/start", body);
@@ -81,6 +84,7 @@ export class ApiClient {
       framework?: string;
       total_tokens?: number;
       total_cost_usd?: number;
+      config_hash?: string;
     },
   ): Promise<SubmitResponse> {
     const body = {
@@ -114,6 +118,7 @@ export class ApiClient {
     limit?: number;
     framework?: string;
     model?: string;
+    bench_type?: string;
   }): Promise<LeaderboardResponse> {
     const params = new URLSearchParams();
     if (options?.sort !== undefined) params.set("sort_by", options.sort);
@@ -122,11 +127,23 @@ export class ApiClient {
     if (options?.framework !== undefined)
       params.set("framework", options.framework);
     if (options?.model !== undefined) params.set("model", options.model);
+    if (options?.bench_type !== undefined)
+      params.set("bench_type", options.bench_type);
 
     const qs = params.toString();
     const path = `/api/bench/leaderboard${qs ? `?${qs}` : ""}`;
 
     const result = await this.get<LeaderboardResponse>(path);
+    return result;
+  }
+
+  async results(runId: string): Promise<unknown> {
+    const result = await this.get<unknown>(`/api/bench/results/${encodeURIComponent(runId)}`);
+    return result;
+  }
+
+  async profile(): Promise<unknown> {
+    const result = await this.get<unknown>("/api/bench/profile");
     return result;
   }
 

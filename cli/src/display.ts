@@ -10,7 +10,7 @@ export interface TaskResult {
   timeMs: number;
   tokens: number;
   status: string;
-  specialist: boolean;
+  specialist?: boolean;
   error?: string;
 }
 
@@ -138,6 +138,118 @@ export function printScorecard(options: ScorecardOptions): void {
   lines.push(bottom);
 
   // Print to stdout
+  process.stdout.write(lines.join("\n") + "\n");
+}
+
+/**
+ * Print agent-specific scorecard with completion %, tool efficiency, recovery score.
+ */
+export function printAgentScorecard(options: ScorecardOptions): void {
+  const { modelName, framework, results, leaderboardUrl } = options;
+  const width = 63;
+  const innerWidth = width - 4;
+
+  const line = (content: string): string =>
+    `║ ${pad(content, innerWidth)} ║`;
+  const divider = `╠${"═".repeat(width - 2)}╣`;
+  const top = `╔${"═".repeat(width - 2)}╗`;
+  const bottom = `╚${"═".repeat(width - 2)}╝`;
+
+  const lines: string[] = [];
+
+  lines.push(top);
+  lines.push(line("AGENT BENCH — Agent Results"));
+  const modelLine = framework
+    ? `Agent: ${modelName} via ${framework}`
+    : `Agent: ${modelName}`;
+  lines.push(line(modelLine));
+  lines.push(divider);
+
+  const header = `${pad("Category", 14)}│${pad(" Complete", 10)}│${pad(" Efficiency", 12)}│ Recovery`;
+  lines.push(line(header));
+  const subline = `${"─".repeat(14)}┼${"─".repeat(10)}┼${"─".repeat(12)}┼${"─".repeat(innerWidth - 14 - 10 - 12 - 3)}`;
+  lines.push(line(subline));
+
+  for (const result of results) {
+    const cat = pad(result.category, 14);
+    const pct = result.score !== null
+      ? pad(` ${Math.round((result.score / result.maxScore) * 100)}%`, 10)
+      : pad(" --", 10);
+    const efficiency = pad(` ${formatTokens(result.tokens)}t`, 12);
+    const recovery = result.error !== undefined ? "❌" : "✅";
+
+    lines.push(line(`${cat}│${pct}│${efficiency}│ ${recovery}`));
+  }
+
+  lines.push(divider);
+
+  const scored = results.filter((r) => r.score !== null);
+  const avgCompletion =
+    scored.length > 0
+      ? scored.reduce((sum, r) => sum + ((r.score ?? 0) / r.maxScore) * 100, 0) /
+        scored.length
+      : 0;
+  const totalTokens = results.reduce((sum, r) => sum + r.tokens, 0);
+
+  lines.push(
+    line(`Completion: ${avgCompletion.toFixed(0)}% │ Tokens: ${formatTokens(totalTokens)}`),
+  );
+
+  if (leaderboardUrl !== undefined) {
+    lines.push(line(`Leaderboard: ${leaderboardUrl}`));
+  }
+
+  lines.push(bottom);
+
+  process.stdout.write(lines.join("\n") + "\n");
+}
+
+/**
+ * Print leaderboard table.
+ */
+export function printLeaderboard(
+  data: { entries: Array<{ model: string; score: number; rank: number; time_ms: number; tokens: number; framework?: string; efficiency_score?: number }>; total: number },
+  benchType: string,
+): void {
+  const width = 72;
+  const innerWidth = width - 4;
+
+  const line = (content: string): string =>
+    `║ ${pad(content, innerWidth)} ║`;
+  const divider = `╠${"═".repeat(width - 2)}╣`;
+  const top = `╔${"═".repeat(width - 2)}╗`;
+  const bottom = `╚${"═".repeat(width - 2)}╝`;
+
+  const lines: string[] = [];
+
+  const title =
+    benchType === "agent"
+      ? "AGENT BENCH — Agent Leaderboard"
+      : "AGENT BENCH — Model Leaderboard";
+
+  lines.push(top);
+  lines.push(line(title));
+  lines.push(line(`Total entries: ${data.total}`));
+  lines.push(divider);
+
+  const header = `${pad("#", 4)}│${pad(" Model", 24)}│${pad(" Score", 8)}│${pad(" Time", 10)}│${pad(" Tokens", 10)}│ Framework`;
+  lines.push(line(header));
+  const subline = `${"─".repeat(4)}┼${"─".repeat(24)}┼${"─".repeat(8)}┼${"─".repeat(10)}┼${"─".repeat(10)}┼${"─".repeat(innerWidth - 4 - 24 - 8 - 10 - 10 - 5)}`;
+  lines.push(line(subline));
+
+  for (const entry of data.entries) {
+    const rank = pad(String(entry.rank), 4);
+    const model = pad(` ${entry.model}`, 24);
+    const score = pad(` ${entry.score.toFixed(1)}`, 8);
+    const time = pad(` ${formatTime(entry.time_ms)}`, 10);
+    const tokens = pad(` ${formatTokens(entry.tokens)}`, 10);
+    const fw = entry.framework ?? "—";
+
+    lines.push(line(`${rank}│${model}│${score}│${time}│${tokens}│ ${fw}`));
+  }
+
+  lines.push(bottom);
+
   process.stdout.write(lines.join("\n") + "\n");
 }
 
