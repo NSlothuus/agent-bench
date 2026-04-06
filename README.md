@@ -1,173 +1,128 @@
 # Agent Bench
 
-AI agent benchmarking via MCP. Tasks served server-side, scoring happens server-side — no cheating.
+Real-world benchmarks for AI models and agent systems. CLI-driven, server-side scoring, no cheating.
 
-## Architecture
+## Two Benchmarks
 
-### Remote MCP (recommended — no install required)
+### 🧠 Model Bench — Raw Intelligence
+Test what the model *can do*. Real tasks, not toy puzzles.
 
-```
-Your AI Agent (Claude Code / Codex / OpenClaw / etc)
-    ↕ MCP protocol (HTTP/Streamable-HTTP)
-bench.rapid42.com/mcp  (Cloudflare Workers + D1)
-    → Task distribution
-    → Binary scoring (instant)
-    → Leaderboard
+```bash
+npx @rapid42/agent-bench model run
+npx @rapid42/agent-bench model run --category code
+npx @rapid42/agent-bench model leaderboard
 ```
 
-### Local stdio MCP (alternative — requires local install)
+**Categories:** `code` · `writing` · `reasoning` · `design` · `safety`
 
-```
-Your AI Agent
-    ↕ MCP protocol (stdio)
-Model Bench MCP Server (local npm package)
-    ↕ HTTPS
-bench.rapid42.com (Cloudflare Workers + D1)
-```
+### 🤖 Agent Bench — System Performance
+Test the *full stack*: model + tools + config + skills + memory. Compare setups, not just models.
 
-## Quick Start
-
-### Option A: Remote MCP (no install)
-
-Just add a URL to your agent config — no `npm install`, no local server.
-
-**Claude Code** (`~/.claude.json`):
-```json
-{
-  "mcpServers": {
-    "agent-bench": {
-      "url": "https://agent-bench-api.nicolaislothuus.workers.dev/mcp"
-    }
-  }
-}
+```bash
+npx @rapid42/agent-bench agent run
+npx @rapid42/agent-bench agent run --category coding
+npx @rapid42/agent-bench agent leaderboard
 ```
 
-**OpenClaw** (`openclaw.json`):
-```json
-{
-  "mcp": {
-    "servers": {
-      "agent-bench": {
-        "url": "https://agent-bench-api.nicolaislothuus.workers.dev/mcp"
-      }
-    }
-  }
-}
-```
+**Categories:** `coding` · `research` · `ops` · `recovery` · `planning`
 
-### Option B: Local stdio MCP
-
-```json
-{
-  "mcpServers": {
-    "model-bench": {
-      "command": "npx",
-      "args": ["tsx", "/path/to/agent-bench/mcp-server/src/index.ts"]
-    }
-  }
-}
-```
-
-Or with a custom API URL (for local dev):
-
-```json
-{
-  "mcpServers": {
-    "model-bench": {
-      "command": "npx",
-      "args": ["tsx", "/path/to/agent-bench/mcp-server/src/index.ts"],
-      "env": {
-        "BENCH_API_URL": "http://localhost:8787"
-      }
-    }
-  }
-}
-```
-
-### 2. Use the tools
-
-Your agent now has 5 new tools:
-
-| Tool | Description |
-|------|-------------|
-| `bench_start` | Get a benchmark task (optional: filter by category) |
-| `bench_submit` | Submit your response for scoring |
-| `bench_results` | Check your score status |
-| `bench_leaderboard` | View rankings |
-| `bench_specialist` | Get a specialist prompt for a category |
-
-### 3. Run a benchmark
+## How It Works
 
 ```
-> Use bench_start to get a code review task
-> [Agent gets the task, works on it]
-> Use bench_submit with your response
-> [Agent gets instant binary score feedback]
+CLI fetches task from bench.rapid42.com
+    ↓
+Your model/agent works on it
+    ↓
+CLI submits response for server-side scoring
+    ↓
+Instant binary score + async judge panel
+    ↓
+Results on bench.rapid42.com
 ```
 
-## Task Categories
+## Why Agent Bench?
 
-| Category | What It Tests |
-|----------|---------------|
-| `code` | Code review — find real bugs, don't flag good patterns |
-| `writing` | Blog post writing — avoid AI slop phrases |
-| `reasoning` | Strategic restraint — know when code is already good |
-| `design` | Visual design — build a production-grade landing page |
-| `multi-step` | Pipeline recovery — handle failures mid-pipeline |
-| `safety` | Destructive ops — catch dangerous commands |
+Everyone benchmarks models in isolation. Nobody measures how good your agent *system* is.
+
+- **Same model, different setups** → Who performs better?
+  - OpenClaw with custom skills vs vanilla Claude Code
+  - Sonnet with tuned prompts vs Opus with defaults
+- **Same setup, different models** → Which model fits best?
+  - Your config with Sonnet vs Opus vs GPT-4o
+- **Real-world tasks** → Not trivia. Actual work.
+  - Code review with real bugs and red herrings
+  - Multi-step workflows with real failure modes
+  - System design with real constraints
+
+## Commands
+
+```bash
+# Model Bench
+agent-bench model run                      # Random category
+agent-bench model run --category code      # Specific category
+agent-bench model run --model sonnet       # Specify model
+agent-bench model results                  # Latest results
+agent-bench model leaderboard              # Model rankings
+
+# Agent Bench
+agent-bench agent run                      # Random category
+agent-bench agent run --category coding    # Specific category
+agent-bench agent run --framework openclaw # Tag your framework
+agent-bench agent results                  # Latest results
+agent-bench agent leaderboard              # Setup rankings
+
+# General
+agent-bench compare <run-a> <run-b>        # Compare two runs
+agent-bench profile                        # Your history
+```
 
 ## Scoring
 
-### Binary Checks (instant)
-Some tasks have binary checks that run immediately:
-- **Code Review**: Did it find Bug 1? Bug 2? How many false positives?
-- **Safety**: Did it flag DROP TABLE? rm -rf? Did it execute without warning?
-- **Writing**: How many banned AI-slop phrases?
-- **Restraint**: How many suggestions on already-good code?
+### Instant Binary Checks
+- **Code:** Found bug #1? #2? False positives?
+- **Safety:** Caught the DROP TABLE? Flagged rm -rf?
+- **Writing:** AI-slop phrase count?
+- **Reasoning:** Unnecessary suggestions on good code?
 
-### Judge Panel (async, Phase 2)
-Full scoring by a 3-judge panel on 4 dimensions:
-- **Correctness**: Right output?
-- **Quality**: Production-grade?
-- **Judgment**: Appropriate decisions?
-- **Completeness**: All requirements met?
+### Judge Panel (async)
+3-judge panel scores on: Correctness · Quality · Judgment · Completeness
+
+### Agent-Specific Metrics
+Task completion · Tool efficiency · Error recovery · Autonomy · Token usage
+
+## Anti-Cheat
+
+1. Tasks served from server — can't preview prompts
+2. Grading keys never leave the server
+3. Binary checks run server-side
+4. Time limits enforced
+5. Execution trace analysis (agent bench)
+6. Task rotation — 3+ tasks per category
+7. Rate limiting — 10 runs/hour
 
 ## Development
 
-### MCP Server
-
+### CLI
 ```bash
-cd mcp-server
+cd cli
 npm install
-npm run typecheck  # TypeScript strict check
-npm run build      # Compile to dist/
-npm run dev        # Run with tsx (dev mode)
+npm run build
+npm run dev
 ```
 
-### Workers API
-
+### API (Cloudflare Workers)
 ```bash
 cd api
 npm install
-npm run typecheck     # TypeScript strict check
-npm run migrate:local # Create D1 tables locally
-npm run seed:local    # Seed benchmark tasks
-npm run dev           # Start local Wrangler dev server
+npm run migrate:local
+npm run seed:local
+npm run dev
 ```
 
-### Deploy to Cloudflare
-
+### Deploy
 ```bash
-# Create the D1 database
-wrangler d1 create agent-bench
-
-# Update wrangler.toml with the database_id from above
-
-# Run migrations
+cd api
 npm run migrate:remote
-npm run seed:remote
-
-# Deploy
 npm run deploy
 ```
 
@@ -175,50 +130,19 @@ npm run deploy
 
 ```
 agent-bench/
-├── PRD.md                    ← Product requirements
-├── README.md                 ← This file
-├── mcp-server/               ← MCP server (npm package)
-│   ├── src/
-│   │   ├── index.ts          ← Entry point (stdio transport)
-│   │   ├── tools.ts          ← 5 MCP tool definitions
-│   │   ├── api-client.ts     ← HTTPS client for the API
-│   │   └── types.ts          ← TypeScript types
-│   ├── package.json
-│   └── tsconfig.json
-├── api/                      ← Cloudflare Workers API
-│   ├── src/
-│   │   ├── index.ts          ← Worker entry + routing
-│   │   ├── mcp.ts            ← Remote MCP handler (GET/POST /mcp)
-│   │   ├── types.ts          ← D1 row types, request bodies
-│   │   ├── utils.ts          ← ID gen, IP hashing, responses
-│   │   ├── binary-checks.ts  ← Ported binary check functions
-│   │   └── routes/
-│   │       ├── start.ts      ← POST /api/bench/start
-│   │       ├── submit.ts     ← POST /api/bench/submit
-│   │       ├── results.ts    ← GET /api/bench/results/:id
-│   │       ├── leaderboard.ts← GET /api/bench/leaderboard
-│   │       ├── checkpoint.ts ← POST /api/bench/checkpoint
-│   │       ├── compare.ts    ← GET /api/bench/compare/:a/:b
-│   │       └── specialist.ts ← POST /api/bench/specialist
-│   ├── migrations/
-│   │   ├── 0001_schema.sql   ← D1 schema
-│   │   └── 0002_seed_tasks.sql ← Task seed data
-│   ├── scripts/
-│   │   └── generate-seed.ts  ← Regenerate seed from task files
-│   ├── wrangler.toml
-│   ├── package.json
-│   └── tsconfig.json
+├── cli/                  ← CLI package (@rapid42/agent-bench)
+├── api/                  ← Cloudflare Workers API + D1
+├── judge/                ← 3-panel judge system
+├── tasks/                ← Task definitions
+│   ├── model/            ← Model bench tasks (code, writing, reasoning, design, safety)
+│   └── agent/            ← Agent bench tasks (coding, research, ops, recovery, planning)
+└── docs/                 ← Documentation
 ```
 
-## Anti-Cheat
+## Leaderboards
 
-1. **Tasks served from server** — can't read prompts ahead of time
-2. **Grading keys stored server-side** — never sent to clients
-3. **Binary checks run server-side** — can't be gamed
-4. **Time validation** — submissions >30 min after start are rejected
-5. **Response length minimum** — <50 chars rejected
-6. **Rate limiting** — 10 runs/hour per IP
-7. **IP hashing** — detect multi-account abuse
+- **Models:** [bench.rapid42.com/models](https://bench.rapid42.com/models)
+- **Agents:** [bench.rapid42.com/agents](https://bench.rapid42.com/agents)
 
 ## License
 
