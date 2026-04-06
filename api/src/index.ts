@@ -12,6 +12,8 @@
  */
 
 import type { Env } from "./types.js";
+import { LEADERBOARD_HTML } from "./leaderboard-html.js";
+
 import { handleStart } from "./routes/start.js";
 import { handleSubmit } from "./routes/submit.js";
 import { handleResults } from "./routes/results.js";
@@ -93,14 +95,17 @@ export default {
       }
 
       // Health check
-      if (path === "/health" || path === "/") {
+      if (path === "/health") {
         return jsonResponse({
           success: true,
-          data: {
-            service: "agent-bench-api",
-            version: "0.1.0",
-            status: "ok",
-          },
+          data: { service: "agent-bench-api", version: "0.2.0", status: "ok" },
+        });
+      }
+
+      // Serve leaderboard HTML at root
+      if (path === "/" || path === "/leaderboard") {
+        return new Response(LEADERBOARD_HTML, {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
 

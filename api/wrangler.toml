@@ -11,7 +11,7 @@ binding = "DB"
 database_name = "agent-bench"
 database_id = "4232bde5-fc38-4294-a49d-0e27206cfb74"
 
-[env.production]
-routes = [
-  { pattern = "bench.rapid42.com/api/*", zone_name = "rapid42.com" }
-]
+# Custom domain — serves both the leaderboard HTML and the API
+[[routes]]
+pattern = "bench.rapid42.com/*"
+zone_name = "rapid42.com"
