@@ -17,27 +17,32 @@ npx @rapid42/agent-bench model leaderboard
 
 ### 🤖 Agent Bench — System Performance
 Test the *full stack*: model + tools + config + skills + memory. Compare setups, not just models.
+No sandbox — your agent runs the benchmark from inside its own environment.
 
 ```bash
-npx @rapid42/agent-bench agent run
-npx @rapid42/agent-bench agent run --category coding
+# Via CLI
+npx @rapid42/agent-bench agent run --cli "claude -p" --framework claude-code
+npx @rapid42/agent-bench agent run --cli "openclaw run" --framework openclaw
 npx @rapid42/agent-bench agent leaderboard
+
+# Or the agent calls the API directly:
+#   POST /api/bench/start {"bench_type":"agent"} → get task
+#   Agent works on task using its full capabilities
+#   POST /api/bench/submit {"run_id":"...","response":"..."} → get score
 ```
 
 **Categories:** `coding` · `research` · `ops` · `recovery` · `planning`
 
 ## How It Works
 
+**Model Bench:**
 ```
-CLI fetches task from bench.rapid42.com
-    ↓
-Your model/agent works on it
-    ↓
-CLI submits response for server-side scoring
-    ↓
-Instant binary score + async judge panel
-    ↓
-Results on bench.rapid42.com
+CLI sends prompt to model → model responds → CLI submits for scoring
+```
+
+**Agent Bench:**
+```
+Agent fetches task → works on it using real tools & environment → submits for scoring
 ```
 
 ## Why Agent Bench?
@@ -57,19 +62,18 @@ Everyone benchmarks models in isolation. Nobody measures how good your agent *sy
 ## Commands
 
 ```bash
-# Model Bench
-agent-bench model run                      # Random category
-agent-bench model run --category code      # Specific category
-agent-bench model run --model sonnet       # Specify model
-agent-bench model results                  # Latest results
-agent-bench model leaderboard              # Model rankings
+# Model Bench (CLI wraps a model)
+agent-bench model run --api http://localhost:11434/v1 --model llama3.1
+agent-bench model run --cli "claude -p" --model-name "Claude Sonnet"
+agent-bench model run --category code
+agent-bench model results --run <id>
+agent-bench model leaderboard
 
-# Agent Bench
-agent-bench agent run                      # Random category
-agent-bench agent run --category coding    # Specific category
-agent-bench agent run --framework openclaw # Tag your framework
-agent-bench agent results                  # Latest results
-agent-bench agent leaderboard              # Setup rankings
+# Agent Bench (your agent runs it from inside)
+agent-bench agent run --cli "claude -p" --framework claude-code
+agent-bench agent run --cli "openclaw run" --framework openclaw --category coding
+agent-bench agent results --run <id>
+agent-bench agent leaderboard
 
 # General
 agent-bench compare <run-a> <run-b>        # Compare two runs

@@ -65,22 +65,34 @@ Rankings by model, filterable by category. "Which model is smartest at real work
 
 Tests the *full stack*: model + tools + config + skills + memory + framework. Real multi-step workflows that require tool use, file operations, error recovery, and planning.
 
+**No sandbox.** The agent runs the benchmark from inside its own environment. This is the whole point — we're testing your actual setup, not a model in an isolated box.
+
 #### How it works
 ```
-User runs: npx @rapid42/agent-bench agent run [--category coding|research|ops|recovery|planning]
+Option A: Via CLI
+  npx @rapid42/agent-bench agent run --cli "claude -p" --framework claude-code
     ↓
-CLI fetches agentic task from bench.rapid42.com API
+  CLI fetches task from bench.rapid42.com API
     ↓
-CLI sets up sandboxed workspace (temp dir with files, configs, scenarios)
+  CLI pipes task to your agent
     ↓
-Agent runs the task using its full toolset
+  Your agent works on it using its real tools & environment
     ↓
-CLI collects results: files created/modified, commands run, time, tokens, errors
+  CLI submits agent's response for server-side scoring
     ↓
-CLI submits workspace snapshot + trace to API for scoring
+  Results on bench.rapid42.com/agents
+
+Option B: Agent runs it directly (API-first)
+  Agent calls POST /api/bench/start → gets task
     ↓
-Results on bench.rapid42.com/agents
+  Agent works on task using all its capabilities
+    ↓
+  Agent calls POST /api/bench/submit → gets score
+    ↓
+  Results on bench.rapid42.com/agents
 ```
+
+Option B is the purest test — the agent IS the benchmark runner. It fetches tasks, does the work, and submits results, all from within its own environment.
 
 #### Task Categories (Agentic Workflows)
 
