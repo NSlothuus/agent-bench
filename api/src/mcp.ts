@@ -111,7 +111,13 @@ function createServer(env: Env, clientIp: string): McpServer {
                 ``,
                 `---`,
                 ``,
-                `Submit your response with bench_submit using run_id: ${runId}`,
+                `---`,
+                ``,
+                `⚠️ IMPORTANT: When you have completed this task, you MUST call the bench_submit tool with:`,
+                `- run_id: "${runId}"`,
+                `- response: (your complete response to the task above)`,
+                ``,
+                `Do NOT just write your answer in chat. You MUST use the bench_submit tool to submit it for scoring.`,
               ].join("\n"),
             },
           ],
@@ -764,6 +770,77 @@ Core principles:
           content: [{ type: "text" as const, text: `Error: ${String(err)}` }],
           isError: true,
         };
+      }
+    },
+  );
+
+  // ---- bench_run (convenience: start + answer in one call) ----------------
+  server.tool(
+    "bench_run",
+    "Run a complete benchmark in one step: provide your answer directly and get scored immediately. Best for local models that struggle with multi-step tool calls.",
+    {
+      category: z.enum(VALID_CATEGORIES).optional().describe("Task category. Omit for random."),
+      response: z.string().min(50).describe("Your complete response to the benchmark task"),
+      model_name: z.string().optional().describe("Model name (e.g. qwen-3.5-9b)"),
+      framework: z.string().optional().describe("Framework (e.g. lm-studio, ollama)"),
+    },
+    async ({ category, response, model_name, framework }) => {
+      try {
+        const modelName = model_name ?? null;
+        const fwk = framework ?? null;
+
+        // response is already validated by zod (min 50 chars)
+
+        // Pick a task
+        let taskQuery = "SELECT * FROM bench_tasks WHERE active = 1";
+        const queryParams: unknown[] = [];
+        if (category) {
+          taskQuery += " AND category = ?";
+          queryParams.push(category);
+        }
+        taskQuery += " ORDER BY RANDOM() LIMIT 1";
+        const task = await env.DB.prepare(taskQuery).bind(...queryParams).first<{ id: string; category: string; title: string; prompt: string; binary_check_fn: string | null }>();
+        if (!task) {
+          return { content: [{ type: "text" as const, text: `Error: no tasks found for category: ${category}` }], isError: true };
+        }
+
+        // Create run
+        const runId = `${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`;
+        const now = Math.floor(Date.now() / 1000);
+
+        // Run binary checks
+        const { runBinaryCheck } = await import("./binary-checks.js");
+        const binaryResult = task.binary_check_fn ? runBinaryCheck(task.binary_check_fn, response) : null;
+        const binaryScoresJson = binaryResult ? JSON.stringify(binaryResult) : null;
+        let estimatedFinal: number | null = null;
+        if (binaryResult?.adjustments) {
+          const adj = binaryResult.adjustments as Record<string, number>;
+          if (adj.judgment_override !== undefined) estimatedFinal = adj.judgment_override;
+          else if (adj.correctness_floor !== undefined) estimatedFinal = adj.correctness_floor;
+          else if (adj.correctness_ceiling !== undefined) estimatedFinal = adj.correctness_ceiling;
+        }
+
+        // Insert scored run
+        await env.DB.prepare(
+          `INSERT INTO bench_runs (id, task_id, category, started_at, submitted_at, response, binary_scores, final_composite, time_elapsed_ms, model_name, framework, status, ip_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'scored', 'mcp-bench-run')`,
+        ).bind(runId, task.id, task.category, now, now, response, binaryScoresJson, estimatedFinal, modelName, fwk).run();
+
+        const lines = [
+          `**Benchmark Complete**`,
+          ``,
+          `Run ID: ${runId}`,
+          `Task: ${task.title} (${task.category})`,
+          `Score: ${estimatedFinal ?? "pending judge review"}/10`,
+        ];
+        if (binaryResult) {
+          lines.push(``, `**Binary Checks:**`, JSON.stringify(binaryResult.details, null, 2));
+        }
+        lines.push(``, `View leaderboard: https://bench.rapid42.com/leaderboard`);
+
+        return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+      } catch (err: unknown) {
+        return { content: [{ type: "text" as const, text: `Error: ${String(err)}` }], isError: true };
       }
     },
   );
