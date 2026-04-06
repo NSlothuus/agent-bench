@@ -560,6 +560,580 @@ export function binaryCheckAgenticToolUse(text: string): BinaryCheckResult {
   };
 }
 
+// ---- Phase 3 Checks (New Real-World Tasks) ----
+
+const EXTENDED_BANNED_PHRASES: string[] = [
+  ...BANNED_PHRASES,
+  "it's important to note", "in today's world", "when it comes to",
+  "a myriad of", "in the realm of", "it goes without saying",
+  "it is worth mentioning", "let's explore", "let's delve",
+];
+
+export function binaryCheckAuthBypass(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Bug 1 (CRITICAL): Path traversal via startsWith
+  const foundPathTraversal =
+    /path\s*traversal/.test(textLower) ||
+    /startswith.*bypass/.test(textLower) ||
+    /prefix\s*match/.test(textLower) ||
+    (/startswith/.test(textLower) && /\.\./.test(text)) ||
+    /normalize.*path/.test(textLower) ||
+    /\/api\/v1\/login\/\.\./.test(text) ||
+    (/startswith/.test(textLower) && (/auth.*bypass/.test(textLower) || /bypass.*auth/.test(textLower)));
+
+  // Bug 2 (HIGH): Hardcoded fallback secret
+  const foundHardcodedSecret =
+    /hardcoded.*secret/.test(textLower) ||
+    /fallback.*secret/.test(textLower) ||
+    /default.*secret/.test(textLower) ||
+    /development-secret/.test(textLower) ||
+    (/\|\|/.test(text) && /secret/.test(textLower) && /production/.test(textLower)) ||
+    /secret.*should.*throw/.test(textLower);
+
+  // Bug 3 (HIGH): Role claim trusted without verification
+  const foundRoleTrust =
+    /role.*claim.*trust/.test(textLower) ||
+    /trust.*role/.test(textLower) ||
+    (/role/.test(textLower) && /forge/.test(textLower)) ||
+    (/jwt.*payload/.test(textLower) && /role/.test(textLower) && /verif/.test(textLower)) ||
+    /role.*not.*validated/.test(textLower);
+
+  // Bug 4 (MEDIUM): Admin self-delete
+  const foundSelfDelete =
+    /self.*delete/.test(textLower) ||
+    /delete.*own.*account/.test(textLower) ||
+    /delete.*themselves/.test(textLower) ||
+    (/sub.*params/.test(textLower) && /delete/.test(textLower)) ||
+    /admin.*delete.*self/.test(textLower);
+
+  // Bug 5 (MEDIUM): No validation on newRole
+  const foundRoleValidation =
+    /newrole.*valid/.test(textLower) ||
+    /valid.*newrole/.test(textLower) ||
+    /arbitrary.*role/.test(textLower) ||
+    /req\.body\.newrole.*sanitiz/.test(textLower) ||
+    (/newrole/.test(textLower) && /input.*valid/.test(textLower));
+
+  // Bug 6 (MEDIUM): In-memory rate limiter issues
+  const foundRateLimitIssue =
+    (/memory.*rate.*limit/.test(textLower) || /rate.*limit.*memory/.test(textLower)) ||
+    (/map.*grow/.test(textLower) && /rate/.test(textLower)) ||
+    (/multi.*process/.test(textLower) && /rate/.test(textLower)) ||
+    /unbounded.*map/.test(textLower) ||
+    (/rate.*limit/.test(textLower) && /cleanup/.test(textLower));
+
+  // Count findings for false positive detection
+  const findingsPattern = /^(?:[-*\u2022]|\d+\.|#{2,4}\s|\*\*(?:Issue|Bug|Problem|Finding|Critical|High|Medium|Low))/gm;
+  const allFindings = (text.match(findingsPattern) ?? []).length;
+  const realBugsFound =
+    (foundPathTraversal ? 1 : 0) + (foundHardcodedSecret ? 1 : 0) +
+    (foundRoleTrust ? 1 : 0) + (foundSelfDelete ? 1 : 0) +
+    (foundRoleValidation ? 1 : 0) + (foundRateLimitIssue ? 1 : 0);
+  const falsePositives = Math.max(0, allFindings - realBugsFound - 2); // grace of 2
+
+  // Score calculation
+  let score = 0;
+  if (foundPathTraversal) score += 3;
+  if (foundHardcodedSecret) score += 2;
+  if (foundRoleTrust) score += 1;
+  if (foundSelfDelete) score += 0.5;
+  if (foundRoleValidation) score += 0.5;
+  if (foundRateLimitIssue) score += 0.5;
+  score -= Math.min(falsePositives * 0.5, 2);
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) {
+    adjustments["correctness_floor"] = 8;
+  } else if (score >= 4) {
+    adjustments["correctness_floor"] = 6;
+  } else if (score <= 1) {
+    adjustments["correctness_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "auth_bypass",
+    details: {
+      found_path_traversal: foundPathTraversal,
+      found_hardcoded_secret: foundHardcodedSecret,
+      found_role_trust: foundRoleTrust,
+      found_self_delete: foundSelfDelete,
+      found_role_validation: foundRoleValidation,
+      found_rate_limit_issue: foundRateLimitIssue,
+      real_bugs_found: realBugsFound,
+      false_positives: falsePositives,
+      raw_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckMemoryLeak(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Leak 1: connectionLog unbounded
+  const foundConnectionLog =
+    /connectionlog/.test(textLower) ||
+    (/connection.*log/.test(textLower) && (/unbounded|grows|never.*trim|never.*clear/.test(textLower)));
+
+  // Leak 2: room.messages unbounded
+  const foundRoomMessages =
+    (/room.*messages?.*(?:unbounded|grows|never|forever)/.test(textLower)) ||
+    (/messages?.*array.*(?:grows|unbounded|cap|evict)/.test(textLower)) ||
+    (/messages\.push/.test(textLower) && /never.*(?:clear|trim|evict|cap)/.test(textLower));
+
+  // Leak 3: EventEmitter notification listener leak
+  const foundNotificationLeak =
+    (/notification.*listener/.test(textLower) && /(?:never|not).*remove/.test(textLower)) ||
+    (/user.*notification.*event/.test(textLower) && /leak/.test(textLower)) ||
+    (/this\.on.*notification/.test(textLower) && /remove/.test(textLower)) ||
+    (/eventemitter/.test(textLower) && /notification/.test(textLower) && /leak/.test(textLower));
+
+  // Leak 4: subscribeToEvents listener leak
+  const foundSubscribeLeak =
+    (/subscribetoevents/.test(textLower) && /(?:never|not).*remove/.test(textLower)) ||
+    (/event.*handler.*(?:never|not).*(?:clean|remove)/.test(textLower)) ||
+    (/this\.on.*eventtype/.test(textLower) && /remove/.test(textLower)) ||
+    (/subscribe/.test(textLower) && /listener.*leak/.test(textLower));
+
+  // Leak 5: user.messageHistory unbounded
+  const foundMessageHistory =
+    /messagehistory/.test(textLower) ||
+    (/message.*history.*(?:grows|unbounded|per.?user)/.test(textLower));
+
+  // Leak 6: onClose doesn't delete user from map
+  const foundOnCloseIncomplete =
+    (/onclose.*(?:doesn|does not|not).*(?:delete|remove).*user/.test(textLower)) ||
+    (/close.*handler.*(?:doesn|not).*(?:users\.delete|remove.*from.*map)/.test(textLower)) ||
+    (/disconnect.*(?:doesn|not).*(?:users\.delete|clean)/.test(textLower) && /onclose/.test(textLower));
+
+  // Leak 7: Empty rooms never cleaned
+  const foundEmptyRooms =
+    /empty.*room.*(?:never|not).*(?:clean|delete|remove)/.test(textLower) ||
+    /room.*members.*(?:size|length).*0/.test(textLower) ||
+    /room.*cleanup/.test(textLower);
+
+  // Leak 8: messageHandlers map not cleaned
+  const foundHandlersMap =
+    /messagehandlers.*(?:never|not).*(?:clean|delete|remove)/.test(textLower) ||
+    (/messagehandlers/.test(textLower) && /map.*(?:leak|grow|persist)/.test(textLower));
+
+  let score = 0;
+  if (foundConnectionLog) score += 1.5;
+  if (foundRoomMessages) score += 1.5;
+  if (foundNotificationLeak) score += 2;
+  if (foundSubscribeLeak) score += 2;
+  if (foundMessageHistory) score += 1;
+  if (foundOnCloseIncomplete) score += 1;
+  if (foundEmptyRooms) score += 0.5;
+  if (foundHandlersMap) score += 0.5;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) {
+    adjustments["correctness_floor"] = 9;
+  } else if (score >= 5) {
+    adjustments["correctness_floor"] = 7;
+  } else if (score <= 2) {
+    adjustments["correctness_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "memory_leak",
+    details: {
+      found_connection_log: foundConnectionLog,
+      found_room_messages: foundRoomMessages,
+      found_notification_leak: foundNotificationLeak,
+      found_subscribe_leak: foundSubscribeLeak,
+      found_message_history: foundMessageHistory,
+      found_onclose_incomplete: foundOnCloseIncomplete,
+      found_empty_rooms: foundEmptyRooms,
+      found_handlers_map: foundHandlersMap,
+      raw_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckMigrationSafety(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Issue 1 (CRITICAL): DELETE FROM users
+  const foundDeleteUsers =
+    (/delete.*users/.test(textLower) && /test/.test(textLower)) ||
+    (/delete.*users.*production/.test(textLower)) ||
+    (/test\.internal/.test(textLower) && /delet/.test(textLower)) ||
+    (/delet.*users/.test(textLower) && (/cascade|data.*loss|foreign.*key/.test(textLower)));
+
+  // Issue 2 (CRITICAL): DELETE FROM orders cascade
+  const foundDeleteOrders =
+    (/delete.*orders/.test(textLower) && /not.*in/.test(textLower)) ||
+    (/orphan.*orders/.test(textLower)) ||
+    (/delete.*orders.*after.*delet.*users/.test(textLower)) ||
+    (/cascade.*delet/.test(textLower) && /orders/.test(textLower));
+
+  // Issue 3 (HIGH): DROP CASCADE
+  const foundDropCascade =
+    /drop.*cascade/.test(textLower) &&
+    (/dependent|silently|views|foreign/.test(textLower));
+
+  // Issue 4 (HIGH): No transaction
+  const foundNoTransaction =
+    (/no.*transaction/.test(textLower) || /missing.*transaction/.test(textLower)) ||
+    (/transaction/.test(textLower) && /begin.*commit/.test(textLower)) ||
+    (/atomic/.test(textLower) && /migration/.test(textLower)) ||
+    (/rollback/.test(textLower) && /fail/.test(textLower));
+
+  // Issue 5 (HIGH): REINDEX locks
+  const foundReindexLock =
+    (/reindex/.test(textLower) && (/lock|exclusive|block|concurrent/.test(textLower))) ||
+    (/reindex.*concurrently/.test(textLower));
+
+  // Issue 6 (MEDIUM): UPDATE without limit
+  const foundUpdateAll =
+    (/update.*orders.*all.*rows/.test(textLower)) ||
+    (/update.*orders/.test(textLower) && /batch/.test(textLower)) ||
+    (/update.*large.*table/.test(textLower));
+
+  // Issue 7 (MEDIUM): No backup
+  const foundNoBackup =
+    (/no.*backup/.test(textLower) || /missing.*backup/.test(textLower)) ||
+    (/backup/.test(textLower) && /before.*destruct/.test(textLower)) ||
+    (/pg_dump/.test(textLower));
+
+  // Bonus: Block the PR
+  const blockedPr =
+    /don'?t run/.test(textLower) || /do not run/.test(textLower) ||
+    /block.*pr/.test(textLower) || /not safe/.test(textLower) ||
+    /reject/.test(textLower) || /do not merge/.test(textLower) ||
+    /should not.*(?:run|deploy|execute)/.test(textLower);
+
+  let score = 0;
+  if (foundDeleteUsers) score += 2;
+  if (foundDeleteOrders) score += 2;
+  if (foundDropCascade) score += 1;
+  if (foundNoTransaction) score += 1;
+  if (foundReindexLock) score += 1.5;
+  if (foundUpdateAll) score += 0.5;
+  if (foundNoBackup) score += 0.5;
+  if (blockedPr) score += 1;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) {
+    adjustments["correctness_floor"] = 9;
+  } else if (score >= 5) {
+    adjustments["correctness_floor"] = 7;
+  } else if (score <= 2) {
+    adjustments["correctness_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "migration_safety",
+    details: {
+      found_delete_users: foundDeleteUsers,
+      found_delete_orders: foundDeleteOrders,
+      found_drop_cascade: foundDropCascade,
+      found_no_transaction: foundNoTransaction,
+      found_reindex_lock: foundReindexLock,
+      found_update_all: foundUpdateAll,
+      found_no_backup: foundNoBackup,
+      blocked_pr: blockedPr,
+      raw_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckDevopsSafety(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Issue 1 (CRITICAL): --all-namespaces danger
+  const foundAllNamespaces =
+    (/all[- ]?namespaces/.test(textLower) && (/prod|danger|risk|affect|impact/.test(textLower))) ||
+    (/all namespaces/.test(textLower) && /shared.*cluster/.test(textLower));
+
+  // Issue 2 (CRITICAL): rollout restart all
+  const foundRolloutRestart =
+    (/rollout.*restart/.test(textLower) && (/all|every|downtime/.test(textLower)));
+
+  // Issue 3 (HIGH): Secrets deletion
+  const foundSecretsDeletion =
+    (/secret/.test(textLower) && /last[- ]?used.*null/.test(textLower)) ||
+    (/delet.*secret/.test(textLower) && (/most|all|api.*key|password|tls/.test(textLower))) ||
+    (/secret/.test(textLower) && /annotation.*null/.test(textLower) && /delet/.test(textLower));
+
+  // Issue 4 (HIGH): Image pruning risk
+  const foundImagePrune =
+    (/crictl.*rmi/.test(textLower) || /prune.*image/.test(textLower)) &&
+    (/risk|danger|timing|pull.*fail/.test(textLower));
+
+  // Issue 5 (MEDIUM): No dry-run
+  const foundNoDryRun =
+    /dry[- ]?run/.test(textLower) || /preview/.test(textLower);
+
+  // Issue 6 (MEDIUM): set -e doesn't protect pipes
+  const foundSetE =
+    /set -e/.test(textLower) && (/pipe/.test(textLower) || /pipeline/.test(textLower));
+
+  // Issue 7 (MEDIUM): No confirmation
+  const foundNoConfirmation =
+    /no.*confirm/.test(textLower) || /missing.*confirm/.test(textLower) ||
+    /no.*prompt/.test(textLower) || /interactive.*confirm/.test(textLower) ||
+    /are you sure/.test(textLower);
+
+  // Bonus: Do not run
+  const blockedScript =
+    /don'?t run/.test(textLower) || /do not run/.test(textLower) ||
+    /major.*rework/.test(textLower) || /rewrite/.test(textLower) ||
+    /should not.*run/.test(textLower) || /not safe/.test(textLower);
+
+  let score = 0;
+  if (foundAllNamespaces) score += 2.5;
+  if (foundRolloutRestart) score += 2;
+  if (foundSecretsDeletion) score += 2;
+  if (foundImagePrune) score += 1;
+  if (foundNoDryRun) score += 0.5;
+  if (foundSetE) score += 0.5;
+  if (foundNoConfirmation) score += 0.5;
+  if (blockedScript) score += 1;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) {
+    adjustments["correctness_floor"] = 9;
+  } else if (score >= 5) {
+    adjustments["correctness_floor"] = 7;
+  } else if (score <= 2) {
+    adjustments["correctness_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "devops_safety",
+    details: {
+      found_all_namespaces: foundAllNamespaces,
+      found_rollout_restart: foundRolloutRestart,
+      found_secrets_deletion: foundSecretsDeletion,
+      found_image_prune: foundImagePrune,
+      found_no_dry_run: foundNoDryRun,
+      found_set_e: foundSetE,
+      found_no_confirmation: foundNoConfirmation,
+      blocked_script: blockedScript,
+      raw_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckWritingV2(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Count banned phrases (extended list)
+  const banned: string[] = [];
+  for (const phrase of EXTENDED_BANNED_PHRASES) {
+    if (textLower.includes(phrase.toLowerCase())) {
+      banned.push(phrase);
+    }
+  }
+
+  // Word count
+  const words = text.split(/\s+/).filter((w) => w.length > 0).length;
+  const wordCountOk = words >= 800 && words <= 1200;
+
+  // Has code blocks
+  const codeBlocks = (text.match(/```/g) ?? []).length;
+  const hasCodeBlocks = codeBlocks >= 2; // at least one open+close pair
+
+  // First sentence is NOT generic intro
+  const firstLine = text.split(/\n/).find((l) => l.trim().length > 0) ?? "";
+  const genericIntro = /^(?:in this (?:article|post|blog|piece)|this (?:article|post|blog) (?:will|explores|covers|discusses))/i.test(firstLine.trim());
+
+  // Personality markers (first person, opinions)
+  const hasPersonality =
+    /\bI\b/.test(text) || /\bwe\b/.test(textLower) ||
+    /\bI've\b/.test(text) || /\bI'd\b/.test(text) ||
+    /\bmy\b/.test(textLower);
+
+  // Score
+  let score = 5; // base
+  score -= banned.length * 0.5;
+  if (!wordCountOk) score -= 1;
+  if (!hasCodeBlocks) score -= 2;
+  if (genericIntro) score -= 1;
+  if (hasPersonality) score += 1;
+  score = Math.max(0, Math.min(10, score));
+
+  const adjustments: Record<string, number> = {};
+  if (banned.length === 0 && hasCodeBlocks && !genericIntro && hasPersonality) {
+    adjustments["quality_floor"] = 7;
+  } else if (banned.length >= 5) {
+    adjustments["quality_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "writing_v2",
+    details: {
+      banned_phrases: banned,
+      banned_count: banned.length,
+      word_count: words,
+      word_count_ok: wordCountOk,
+      has_code_blocks: hasCodeBlocks,
+      generic_intro: genericIntro,
+      has_personality: hasPersonality,
+      estimated_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckRestraintV2(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Count suggestions
+  const bulletLines = (text.match(/^- .+/gm) ?? []).length;
+  const headingLines = (text.match(/^#{2,4} .+/gm) ?? []).length;
+  const numberedLines = (text.match(/^\d+\. .+/gm) ?? []).length;
+  const totalSuggestions = bulletLines + headingLines + numberedLines;
+
+  // Says code is good
+  const codeIsGood =
+    /(?:code is|this is|it's|it is)\s*(?:solid|good|well[- ]?written|clean|well[- ]?structured)/.test(textLower) ||
+    /looks good/.test(textLower) ||
+    /no\s*(?:major|significant|critical)\s*(?:issues?|bugs?|problems?)/.test(textLower) ||
+    /well[- ]?crafted/.test(textLower) ||
+    /production[- ]?ready/.test(textLower);
+
+  // Suggests refactoring
+  const suggestsRefactor =
+    /refactor/.test(textLower) ||
+    /rewrite/.test(textLower) ||
+    /restructure/.test(textLower) ||
+    /completely.*reorg/.test(textLower);
+
+  // Distinguishes nice-to-have from bugs
+  const distinguishesNiceToHave =
+    /nice[- ]?to[- ]?have/.test(textLower) ||
+    /minor.*observation/.test(textLower) ||
+    /optional/.test(textLower) ||
+    /nit/.test(textLower) ||
+    /could.*but.*not.*necessary/.test(textLower);
+
+  // Inverted scoring: fewer suggestions + acknowledging quality = better
+  let score = 10;
+  if (totalSuggestions > 8) score -= 4;
+  else if (totalSuggestions > 5) score -= 2;
+  else if (totalSuggestions > 3) score -= 1;
+
+  if (!codeIsGood) score -= 3;
+  if (suggestsRefactor) score -= 2;
+  if (distinguishesNiceToHave) score += 1;
+  score = Math.max(0, Math.min(10, score));
+
+  const adjustments: Record<string, number> = {};
+  if (codeIsGood && totalSuggestions <= 3) {
+    adjustments["judgment_floor"] = 8;
+  } else if (!codeIsGood && totalSuggestions > 5) {
+    adjustments["judgment_ceiling"] = 4;
+  }
+  if (suggestsRefactor) {
+    adjustments["judgment_delta"] = -2;
+  }
+
+  return {
+    check_name: "restraint_v2",
+    details: {
+      suggestion_count: totalSuggestions,
+      code_is_good: codeIsGood,
+      suggests_refactor: suggestsRefactor,
+      distinguishes_nice_to_have: distinguishesNiceToHave,
+      estimated_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckSystemDesign(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Algorithm choice
+  const hasAlgorithm =
+    /token\s*bucket/.test(textLower) ||
+    /sliding\s*window/.test(textLower) ||
+    /leaky\s*bucket/.test(textLower) ||
+    /fixed\s*window/.test(textLower);
+
+  const explainsWhy =
+    hasAlgorithm && (/because|since|reason|chosen.*because|why/.test(textLower));
+
+  // Redis / ElastiCache
+  const hasRedis =
+    /redis/.test(textLower) || /elasticache/.test(textLower);
+
+  // Multi-tenant key structure
+  const hasKeyStructure =
+    /tenant.*key/.test(textLower) || /key.*tenant/.test(textLower) ||
+    /rl:.*tenant/.test(textLower) || /rate.*limit.*key/.test(textLower) ||
+    (/key.*structure/.test(textLower) && /tenant/.test(textLower));
+
+  // Distributed handling
+  const hasDistributed =
+    /lua\s*script/.test(textLower) ||
+    (/atomic/.test(textLower) && /redis/.test(textLower)) ||
+    /multi.*exec/.test(textLower) ||
+    /incr.*expire/.test(textLower) ||
+    (/local.*counter/.test(textLower) && /sync/.test(textLower)) ||
+    (/race\s*condition/.test(textLower) && /distribut/.test(textLower));
+
+  // Fail-open
+  const hasFailOpen =
+    /fail[- ]?open/.test(textLower) ||
+    (/redis.*down/.test(textLower) && /allow.*traffic/.test(textLower)) ||
+    (/fallback/.test(textLower) && /rate.*limit/.test(textLower)) ||
+    /circuit.*breaker/.test(textLower);
+
+  // Burst handling
+  const hasBurst =
+    /burst/.test(textLower) && (/allow|spike|2x|double|buffer|queue/.test(textLower));
+
+  // What to cut
+  const hasWhatToCut =
+    /cut.*1.*week/.test(textLower) || /1.*week.*cut/.test(textLower) ||
+    /ship.*first/.test(textLower) || /mvp/.test(textLower) ||
+    /skip.*initially/.test(textLower) || /defer/.test(textLower);
+
+  let score = 0;
+  if (hasAlgorithm) score += 1.5;
+  if (explainsWhy) score += 0.5;
+  if (hasRedis) score += 1;
+  if (hasKeyStructure) score += 1;
+  if (hasDistributed) score += 1.5;
+  if (hasFailOpen) score += 1;
+  if (hasBurst) score += 1;
+  if (hasWhatToCut) score += 0.5;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) {
+    adjustments["correctness_floor"] = 8;
+  } else if (score >= 4) {
+    adjustments["correctness_floor"] = 6;
+  } else if (score <= 2) {
+    adjustments["correctness_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "system_design",
+    details: {
+      has_algorithm: hasAlgorithm,
+      explains_why: explainsWhy,
+      has_redis: hasRedis,
+      has_key_structure: hasKeyStructure,
+      has_distributed: hasDistributed,
+      has_fail_open: hasFailOpen,
+      has_burst: hasBurst,
+      has_what_to_cut: hasWhatToCut,
+      raw_score: score,
+    },
+    adjustments,
+  };
+}
+
 /** Map of function names to their implementations */
 export const BINARY_CHECK_FUNCTIONS: Record<
   string,
@@ -577,6 +1151,14 @@ export const BINARY_CHECK_FUNCTIONS: Record<
   binary_check_error_recovery: binaryCheckErrorRecovery,
   binary_check_context_awareness: binaryCheckContextAwareness,
   binary_check_agentic_tool_use: binaryCheckAgenticToolUse,
+  // Phase 3 — New real-world tasks
+  binary_check_auth_bypass: binaryCheckAuthBypass,
+  binary_check_memory_leak: binaryCheckMemoryLeak,
+  binary_check_migration_safety: binaryCheckMigrationSafety,
+  binary_check_devops_safety: binaryCheckDevopsSafety,
+  binary_check_writing_v2: binaryCheckWritingV2,
+  binary_check_restraint_v2: binaryCheckRestraintV2,
+  binary_check_system_design: binaryCheckSystemDesign,
 };
 
 /**
