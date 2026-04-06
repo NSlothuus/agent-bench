@@ -1,0 +1,32 @@
+{
+  "name": "@rapid42/agent-bench",
+  "version": "0.1.0",
+  "description": "Benchmark any AI model. Zero deps. Server-scored.",
+  "bin": {
+    "agent-bench": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "npx tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist/"
+  ],
+  "keywords": [
+    "ai",
+    "benchmark",
+    "llm",
+    "agent",
+    "testing"
+  ],
+  "author": "Rapid42",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
