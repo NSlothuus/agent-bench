@@ -50,6 +50,8 @@ export interface RunRow {
   config_hash: string | null;
   workspace_snapshot: string | null;
   execution_trace: string | null;
+  // Specialist mode tracking
+  specialist_mode: string;
 }
 
 export interface CheckpointRow {
@@ -89,6 +91,7 @@ export interface SubmitRequestBody {
   total_tokens?: number;
   total_cost_usd?: number;
   models_used?: string[];
+  specialist_mode?: "raw" | "specialist";
 }
 
 export interface AgentSubmitRequestBody extends SubmitRequestBody {

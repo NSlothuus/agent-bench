@@ -8,7 +8,7 @@ LEADERBOARD_URL = "https://bench.rapid42.com/leaderboard"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "agent-bench"
+database_name = "agent-bench-v2"
 database_id = "4232bde5-fc38-4294-a49d-0e27206cfb74"
 
 # Custom domain — serves both the leaderboard HTML and the API

@@ -3,7 +3,7 @@
  * Zero dependencies: uses Node.js built-in fetch.
  */
 
-const DEFAULT_SERVER = "https://agent-bench-api.nicolaislothuus.workers.dev";
+const DEFAULT_SERVER = "https://bench.rapid42.com";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export interface StartResponse {
@@ -85,6 +85,7 @@ export class ApiClient {
       total_tokens?: number;
       total_cost_usd?: number;
       config_hash?: string;
+      specialist_mode?: "raw" | "specialist";
     },
   ): Promise<SubmitResponse> {
     const body = {

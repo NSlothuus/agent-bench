@@ -98,6 +98,7 @@ export async function handleSubmit(
   const configHash = body.config_hash ?? null;
   const workspaceSnapshot = body.workspace_snapshot ?? null;
   const executionTrace = body.execution_trace ?? null;
+  const specialistMode = body.specialist_mode ?? "specialist";
 
   // Update the run
   await env.DB.prepare(
@@ -116,7 +117,8 @@ export async function handleSubmit(
          final_composite = ?,
          config_hash = ?,
          workspace_snapshot = ?,
-         execution_trace = ?
+         execution_trace = ?,
+         specialist_mode = ?
      WHERE id = ?`,
   )
     .bind(
@@ -134,6 +136,7 @@ export async function handleSubmit(
       configHash,
       workspaceSnapshot,
       executionTrace,
+      specialistMode,
       run.id,
     )
     .run();

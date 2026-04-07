@@ -14,6 +14,7 @@ interface LeaderboardRow {
   tokens_used: number;
   efficiency_score: number | null;
   total_cost_usd: number | null;
+  judge_scores: string | null;
 }
 
 interface SetupLeaderboardRow {
@@ -36,6 +37,7 @@ export async function handleLeaderboard(
   const limitParam = url.searchParams.get("limit") ?? "10";
   const frameworkFilter = url.searchParams.get("framework");
   const modelFilter = url.searchParams.get("model");
+  const specialistModeFilter = url.searchParams.get("specialist_mode");
   const benchType = url.searchParams.get("bench_type") ?? "model";
 
   const sortBy = VALID_SORT_BY.includes(sortByParam as (typeof VALID_SORT_BY)[number])
@@ -43,6 +45,12 @@ export async function handleLeaderboard(
     : "quality";
 
   const limit = Math.min(Math.max(parseInt(limitParam, 10) || 10, 1), 50);
+  const groupBy = url.searchParams.get("group") ?? (benchType === "model" ? "model" : "run");
+
+  // Model aggregation mode: one row per model with task breakdown
+  if (groupBy === "model" && benchType === "model") {
+    return handleModelLeaderboard(env, sortBy, limit, frameworkFilter, modelFilter, specialistModeFilter);
+  }
 
   // Setup leaderboard mode: group by config_hash for agent bench
   if (sortBy === "setup" && benchType === "agent") {
@@ -89,7 +97,7 @@ export async function handleLeaderboard(
   const whereStr = whereClauses.join(" AND ");
 
   const stmt = env.DB.prepare(
-    `SELECT model_name, framework, final_composite, time_elapsed_ms, tokens_used, efficiency_score, total_cost_usd
+    `SELECT model_name, framework, final_composite, time_elapsed_ms, tokens_used, efficiency_score, total_cost_usd, judge_scores
      FROM bench_runs
      WHERE ${whereStr}
      ORDER BY ${orderBy}
@@ -105,16 +113,27 @@ export async function handleLeaderboard(
   );
   const countResult = await countStmt.bind(...countBindings).first<{ total: number }>();
 
-  const entries = rows.results.map((row, index) => ({
-    model: row.model_name ?? "unknown",
-    score: row.final_composite ?? 0,
-    rank: index + 1,
-    time_ms: row.time_elapsed_ms ?? 0,
-    tokens: row.tokens_used ?? 0,
-    framework: row.framework ?? undefined,
-    efficiency_score: row.efficiency_score ?? undefined,
-    cost_usd: row.total_cost_usd ?? undefined,
-  }));
+  const entries = rows.results.map((row, index) => {
+    let judgeBreakdown = undefined;
+    if (row.judge_scores) {
+      try {
+        judgeBreakdown = JSON.parse(row.judge_scores);
+      } catch {
+        // ignore parse errors
+      }
+    }
+    return {
+      model: row.model_name ?? "unknown",
+      score: row.final_composite ?? 0,
+      rank: index + 1,
+      time_ms: row.time_elapsed_ms ?? 0,
+      tokens: row.tokens_used ?? 0,
+      framework: row.framework ?? undefined,
+      efficiency_score: row.efficiency_score ?? undefined,
+      cost_usd: row.total_cost_usd ?? undefined,
+      judge_breakdown: judgeBreakdown,
+    };
+  });
 
   return jsonResponse({
     success: true,
@@ -125,6 +144,151 @@ export async function handleLeaderboard(
     },
   });
 }
+
+async function handleModelLeaderboard(
+  env: Env,
+  sortBy: string,
+  limit: number,
+  frameworkFilter: string | null,
+  modelFilter: string | null,
+  specialistModeFilter: string | null,
+): Promise<Response> {
+  const JUDGE_KEYS = ["judge1", "judge2", "judge3"];
+  const STANDARD_CATS = new Set(["code", "writing", "reasoning", "design", "safety"]);
+
+  // Build WHERE clause
+  const whereClauses: string[] = [
+    "bench_type = 'model'",
+    "model_name IS NOT NULL",
+    "final_composite IS NOT NULL",
+  ];
+  const bindings: (string | number)[] = [];
+  if (frameworkFilter !== null) {
+    whereClauses.push("framework = ?"); bindings.push(frameworkFilter);
+  }
+  if (modelFilter !== null) {
+    whereClauses.push("model_name LIKE ?"); bindings.push(`%${modelFilter}%`);
+  }
+  if (specialistModeFilter !== null) {
+    whereClauses.push("specialist_mode = ?"); bindings.push(specialistModeFilter);
+  }
+  const whereStr = whereClauses.join(" AND ");
+
+  // Fetch all qualifying rows
+  const allRows = await env.DB.prepare(
+    `SELECT model_name, framework, category, task_id, final_composite as score,
+            time_elapsed_ms, COALESCE(tokens_used,0) as tokens,
+            total_cost_usd, judge_scores, created_at, specialist_mode
+     FROM bench_runs WHERE ${whereStr}`,
+  )
+    .bind(...bindings)
+    .all<any>();
+
+  // Strip specialist suffix e.g. "sonnet (+Copywriter)" → "sonnet"
+  function baseModel(name: string): string {
+    return name.replace(/ \(\+[^)]+\)$/, '').trim();
+  }
+
+  // Group into runs by (base_model_name, specialist_mode, 60-min bucket)
+  type RunGroup = {
+    model: string; framework: string | null;
+    bucket: number; started_at: number; finished_at: number;
+    specialist_mode: string;
+    tasks: any[];
+  };
+  const runMap = new Map<string, RunGroup>();
+  for (const r of allRows.results) {
+    const base = baseModel(r.model_name);
+    const sm = r.specialist_mode ?? "specialist";
+    const bucket = Math.floor(r.created_at / 3600); // 60-min windows
+    const key = base + "::" + sm + "::" + bucket;
+    if (!runMap.has(key)) {
+      runMap.set(key, {
+        model: base, framework: r.framework ?? null,
+        bucket, started_at: r.created_at, finished_at: r.created_at,
+        specialist_mode: sm, tasks: [],
+      });
+    }
+    const g = runMap.get(key)!;
+    g.started_at = Math.min(g.started_at, r.created_at);
+    g.finished_at = Math.max(g.finished_at, r.created_at);
+    g.tasks.push(r);
+  }
+
+  // Filter: only runs where ALL 5 standard cats present AND all 3 judges on every task
+  const completeRuns: RunGroup[] = [];
+  for (const [, g] of runMap) {
+    const cats = new Set(g.tasks.map((t: any) => t.category));
+    const hasAllCats = STANDARD_CATS.size === g.tasks.length &&
+      [...STANDARD_CATS].every((c: string) => cats.has(c));
+    if (!hasAllCats) continue;
+    const allJudged = g.tasks.every((t: any) => {
+      if (!t.judge_scores) return false;
+      try {
+        const j = JSON.parse(t.judge_scores);
+        const judgedCount = JUDGE_KEYS.filter((jk) => j[jk] && j[jk].composite != null).length;
+        return judgedCount >= 2;
+      } catch { return false; }
+    });
+    if (!allJudged) continue;
+    completeRuns.push(g);
+  }
+
+  // Sort
+  completeRuns.sort((a, b) => {
+    switch (sortBy) {
+      case "speed": {
+        const aTime = a.tasks.reduce((s: number, t: any) => s + (t.time_elapsed_ms || 0), 0);
+        const bTime = b.tasks.reduce((s: number, t: any) => s + (t.time_elapsed_ms || 0), 0);
+        return aTime - bTime;
+      }
+      case "cost": {
+        const aCost = a.tasks.reduce((s: number, t: any) => s + (t.total_cost_usd || 0), 0);
+        const bCost = b.tasks.reduce((s: number, t: any) => s + (t.total_cost_usd || 0), 0);
+        return aCost - bCost;
+      }
+      default: return b.finished_at - a.finished_at;
+    }
+  });
+
+  const limited = completeRuns.slice(0, limit);
+
+  const entries = limited.map((g) => {
+    const avgScore = g.tasks.reduce((s: number, t: any) => s + (t.score || 0), 0) / g.tasks.length;
+    const totalTime = g.tasks.reduce((s: number, t: any) => s + (t.time_elapsed_ms || 0), 0);
+    const totalTokens = g.tasks.reduce((s: number, t: any) => s + (t.tokens || 0), 0);
+    const totalCost = g.tasks.reduce((s: number, t: any) => s + (t.total_cost_usd || 0), 0);
+    return {
+      model: g.model,
+      framework: g.framework ?? undefined,
+      specialist_mode: g.specialist_mode,
+      best_score: Math.round(Math.max(...g.tasks.map((t: any) => t.score || 0)) * 10) / 10,
+      avg_score: Math.round(avgScore * 10) / 10,
+      score: Math.round(avgScore * 10) / 10,
+      time_ms: totalTime,
+      tokens: totalTokens,
+      cost_usd: Math.round(totalCost * 10000) / 10000 || null,
+      started_at: new Date(g.started_at * 1000).toISOString(),
+      finished_at: new Date(g.finished_at * 1000).toISOString(),
+      tasks: g.tasks.map((t: any) => {
+        let jb: Record<string, any> | undefined;
+        if (t.judge_scores) { try { jb = JSON.parse(t.judge_scores); } catch { /* noop */ } }
+        return {
+          category: t.category, task_id: t.task_id,
+          score: t.score ?? 0, time_ms: t.time_elapsed_ms ?? 0,
+          tokens: t.tokens ?? 0, cost_usd: t.total_cost_usd ?? null,
+          judge_breakdown: jb,
+        };
+      }),
+    };
+  });
+
+  return jsonResponse({
+    success: true,
+    data: { bench_type: "model", mode: "per_run", entries, total: entries.length },
+  });
+}
+
 
 async function handleSetupLeaderboard(
   env: Env,

@@ -1,20 +1,24 @@
-# Last Heartbeat — 2026-04-06 16:46 CEST
+# Last Heartbeat — 2026-04-07 22:50 CEST
 
 ## What I Did
-- Checked API health: ✅ v0.3.0 live at bench.rapid42.com
-- Checked leaderboard: 10 scored entries, functioning
-- Checked npm: @rapid42/agent-bench not yet published (expected — Phase 3)
-- No test suite to run yet
+- Confirmed bench.rapid42.com is healthy (version 0.3.0)
+- Confirmed leaderboard has both Sonnet 4.6 (best 8.8, avg 6.9) and Opus 4.6 (best 8.9, avg 7.1)
+- Fixed HEARTBEAT.md: health endpoint is `/health` not `/api/health`
+- Background exec "salty-or" completed with composite 6.33 (design 8, safety 4) — not yet on leaderboard
+
+## Board State
+- Claude Sonnet 4.6: best 8.8, avg 6.9
+- Claude Opus 4.6: best 8.9, avg 7.1
 
 ## Issues Found
-- None critical
+- Health endpoint wrong path in HEARTBEAT.md — FIXED
+- "salty-or" exec (composite 6.33) results not on leaderboard — possibly not submitted or still processing
 
 ## In-Progress Items
-- `agent run` sandbox implementation (Phase 2 in PRD)
-- npm publish (Phase 3)
-- Judge panel (Phase 3)
-- Test suites for CLI and API not yet written
+- npm publish @rapid42/agent-bench
+- Investigate "salty-or" benchmark run — composite 6.33, did it submit?
+- Add GET /api/health route (or document correct /health path in HEARTBEAT)
 
 ## Suggestions
-1. Add a test script to CLI and API package.json so heartbeat priority 4 can actually run something
-2. Add a check for the number of active tasks per category to ensure rotation pool stays at 3+
+1. Check if "salty-or" run submitted its results — if not, submit them
+2. Consider adding a /api/health redirect to /health for consistency

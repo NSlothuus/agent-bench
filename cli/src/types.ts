@@ -48,6 +48,7 @@ export interface ModelBenchOptions {
   apiKey?: string;
   cli?: string;
   specialist: boolean;
+  specialist_mode?: "raw" | "specialist" | "both";
   category?: string;
   modelName?: string;
   framework?: string;

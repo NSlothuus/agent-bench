@@ -3,7 +3,7 @@
 ## Priority Chain
 
 ### 1. Check bench.rapid42.com Health
-Verify the API is responding: `curl -s https://bench.rapid42.com/api/health`
+Verify the API is responding: `curl -s https://bench.rapid42.com/health`
 If down, check Cloudflare Workers dashboard and alert main agent.
 
 ### 2. Check Pending Judge Queue

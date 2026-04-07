@@ -63,12 +63,19 @@ export async function runModelBench(
   const displayName =
     options.modelName ?? options.model ?? options.cli ?? "unknown";
 
+  // Resolve specialist_mode with backward compat:
+  // - explicit specialist_mode wins
+  // - else if options.specialist is true → "both"
+  // - else → "specialist"
+  const mode: "raw" | "specialist" | "both" =
+    options.specialist_mode ??
+    (options.specialist ? "both" : "specialist");
+
   const categories: string[] =
     options.category !== undefined ? [options.category] : [...MODEL_CATEGORIES];
 
-  const totalTasks = options.specialist
-    ? categories.length * 2
-    : categories.length;
+  const totalTasks =
+    mode === "both" ? categories.length * 2 : categories.length;
 
   if (!options.json) {
     process.stderr.write("\n");
@@ -84,76 +91,80 @@ export async function runModelBench(
   let taskNumber = 0;
 
   for (const category of categories) {
-    taskNumber++;
-    if (!options.json) {
-      printProgress(category, "Starting task...", totalTasks, taskNumber);
-    }
-
-    try {
-      const task = await client.start(category, "model");
-
+    // ── RAW RUN ──────────────────────────────────────────
+    if (mode === "raw" || mode === "both") {
+      taskNumber++;
       if (!options.json) {
-        printProgress(category, "Sending to model...", totalTasks, taskNumber);
+        printProgress(category, "Starting task (raw)...", totalTasks, taskNumber);
       }
 
-      const response = await callModel(options, task.task_prompt);
+      try {
+        const task = await client.start(category, "model");
 
-      if (!options.json) {
-        printProgress(
+        if (!options.json) {
+          printProgress(category, "Sending to model...", totalTasks, taskNumber);
+        }
+
+        const response = await callModel(options, task.task_prompt);
+
+        if (!options.json) {
+          printProgress(
+            category,
+            "Submitting for scoring...",
+            totalTasks,
+            taskNumber,
+          );
+        }
+
+        const score = await client.submit(task.run_id, response.text, {
+          model_name: displayName,
+          framework: options.framework,
+          total_tokens: response.tokens,
+          specialist_mode: "raw",
+        });
+
+        const result: BenchResult = {
+          bench_type: "model",
           category,
-          "Submitting for scoring...",
-          totalTasks,
-          taskNumber,
-        );
-      }
+          score: score.estimated_final,
+          maxScore: 10,
+          timeMs: response.timeMs,
+          tokens: response.tokens,
+          status: score.binary_score?.summary ?? score.status,
+          specialist: false,
+        };
 
-      const score = await client.submit(task.run_id, response.text, {
-        model_name: displayName,
-        framework: options.framework,
-        total_tokens: response.tokens,
-      });
+        results.push(result);
 
-      const result: BenchResult = {
-        bench_type: "model",
-        category,
-        score: score.estimated_final,
-        maxScore: 10,
-        timeMs: response.timeMs,
-        tokens: response.tokens,
-        status: score.binary_score?.summary ?? score.status,
-        specialist: false,
-      };
+        if (!options.json) {
+          const scoreStr =
+            result.score !== null ? `${result.score}/10` : "queued";
+          process.stderr.write(
+            `    ✅ ${category}: ${scoreStr} (${formatTimeShort(response.timeMs)})\n`,
+          );
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({
+          bench_type: "model",
+          category,
+          score: null,
+          maxScore: 10,
+          timeMs: 0,
+          tokens: 0,
+          status: "failed",
+          specialist: false,
+          error: msg,
+        });
 
-      results.push(result);
-
-      if (!options.json) {
-        const scoreStr =
-          result.score !== null ? `${result.score}/10` : "queued";
-        process.stderr.write(
-          `    ✅ ${category}: ${scoreStr} (${formatTimeShort(response.timeMs)})\n`,
-        );
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      results.push({
-        bench_type: "model",
-        category,
-        score: null,
-        maxScore: 10,
-        timeMs: 0,
-        tokens: 0,
-        status: "failed",
-        specialist: false,
-        error: msg,
-      });
-
-      if (!options.json) {
-        process.stderr.write(`    ❌ ${category}: ${msg}\n`);
+        if (!options.json) {
+          process.stderr.write(`    ❌ ${category}: ${msg}\n`);
+        }
       }
     }
 
-    // Specialist run
-    if (options.specialist) {
+    // ── SPECIALIST RUN ───────────────────────────────────
+    if (mode === "specialist" || mode === "both") {
       taskNumber++;
       const specCategory = `${category}+spec`;
 
@@ -202,6 +213,7 @@ export async function runModelBench(
           model_name: `${displayName} (+${spec.specialist_name})`,
           framework: options.framework,
           total_tokens: response.tokens,
+          specialist_mode: "specialist",
         });
 
         const result: BenchResult = {

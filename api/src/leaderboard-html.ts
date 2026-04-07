@@ -304,6 +304,26 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
   .bar-green { background: var(--green); }
   .bar-yellow { background: var(--yellow); }
   .bar-red { background: var(--red); }
+  .judge-panel-card { grid-column: span 2; }
+  .judge-grid { display: flex; flex-direction: column; gap: 8px; }
+  .judge-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .judge-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .judge-name { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+  .judge-score { font-size: 14px; font-weight: 700; }
+  .judge-dims { display: flex; gap: 12px; }
+  .judge-dims span { display: flex; align-items: center; gap: 3px; }
+  .dim-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+  .dim-val { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
 
   .state-msg {
     text-align: center;
@@ -360,6 +380,100 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     td, thead th { padding: 10px 12px; font-size: 13px; }
     .detail-grid { grid-template-columns: 1fr; }
   }
+
+  /* ── Aggregated detail panel ─────────────────────────── */
+  .detail-agg { padding: 20px 24px; }
+  .agg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .agg-title {}
+  .agg-model {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .agg-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .as-item { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .as-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+  .as-val { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+  .as-val.score { color: inherit; }
+
+  /* Score bars overview */
+  .agg-score-bars { margin-bottom: 20px; }
+  .score-bars { display: flex; flex-direction: column; gap: 6px; }
+  .sb-item { display: flex; align-items: center; gap: 10px; }
+  .sb-label { font-size: 11px; color: var(--text-secondary); text-transform: capitalize; min-width: 70px; }
+  .sb-bar-wrap { flex: 1; height: 8px; background: var(--bg-primary); border-radius: 4px; overflow: hidden; }
+  .sb-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+  .sb-val { font-size: 12px; font-weight: 600; min-width: 32px; text-align: right; }
+  .sb-val.score { color: inherit; }
+
+  /* Task table */
+  .agg-table-wrap { overflow-x: auto; }
+  .agg-table-header, .task-row {
+    display: grid;
+    grid-template-columns: 90px 60px 1fr 70px 70px 70px 1fr;
+    align-items: center;
+    gap: 0;
+  }
+  .agg-table-header {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 0 8px 6px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 4px;
+  }
+  .task-row {
+    padding: 8px 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .task-row:hover { background: var(--bg-hover); }
+  .task-name { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: capitalize; display: flex; flex-direction: column; gap: 1px; }
+  .task-id-hint { font-size: 10px; font-weight: 400; color: var(--text-muted); text-transform: none; letter-spacing: 0.01em; }
+  .task-score-col {}
+  .task-score { font-size: 15px; font-weight: 700; }
+  .task-score.score { color: inherit; }
+  .task-bar-col {}
+  .task-bar { height: 6px; background: var(--bg-primary); border-radius: 3px; overflow: hidden; }
+  .task-bar-fill { height: 100%; border-radius: 3px; }
+  .task-meta-col { text-align: center; }
+  .tm { font-size: 11px; color: var(--text-muted); }
+  .task-judge-col { display: flex; gap: 6px; flex-wrap: wrap; }
+  .jb {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+  .jb-name { color: var(--text-muted); }
+  .jb-score { font-weight: 700; font-size: 11px; }
+  .jb-score.score { color: inherit; }
+  .jb-dims { color: var(--text-muted); font-family: monospace; font-size: 9px; }
+  .jb-pending { color: var(--text-muted); font-style: italic; }
+
+  .agg-legend {
+    margin-top: 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -411,11 +525,11 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
         <tr>
           <th data-sort="rank">#</th>
           <th data-sort="model">Model</th>
-          <th data-sort="framework">Framework</th>
-          <th data-sort="score" class="sorted">Score \\u2193</th>
+          <th data-sort="score" class="sorted">Score</th>
           <th data-sort="time">Time</th>
           <th data-sort="tokens">Tokens</th>
           <th data-sort="cost">Cost</th>
+          <th>Finished</th>
         </tr>
       </thead>
       <tbody id="model-table-body">
@@ -519,10 +633,10 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
       case 'rank': return entry._rank || 0;
       case 'model': return (entry.model || '').toLowerCase();
       case 'framework': return (entry.framework || '').toLowerCase();
-      case 'score': return entry.score || 0;
-      case 'time': return entry.time_ms || 0;
-      case 'tokens': return entry.tokens || 0;
-      case 'cost': return entry.cost_usd || 999999;
+      case 'score': return (entry.best_score || entry.score) || 0;
+      case 'time': return (entry.total_time_ms || entry.time_ms) || 0;
+      case 'tokens': return (entry.total_tokens || entry.tokens) || 0;
+      case 'cost': return (entry.total_cost_usd || entry.cost_usd) || 999999;
       default: return 0;
     }
   }
@@ -545,30 +659,127 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     tbody.innerHTML = '';
 
     if (filtered.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7"><div class="state-msg"><div class="icon">\\u{1F3AF}</div><div class="title">No results yet</div><p>Be the first to benchmark a model!</p></div></td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7"><div class="state-msg"><div class="icon">\u{1F3AF}</div><div class="title">No complete runs yet</div><p>Waiting for runs with all 5 tasks + all 3 judges.</p></div></td></tr>';
       return;
     }
 
-    filtered.forEach(function(entry, idx) {
-      var s = entry.score != null ? entry.score : 0;
-      var modelName = entry.model || 'unknown';
-      var fw = entry.framework || '\\u2014';
-      var costStr = entry.cost_usd != null ? '\\$' + entry.cost_usd.toFixed(4) : '\\u2014';
+    // Group by model to detect raw+specialist pairs
+    var byModel = {};
+    for (var fi = 0; fi < filtered.length; fi++) {
+      var e = filtered[fi];
+      var key = (e.model || 'unknown') + '::' + (e.framework || '');
+      if (!byModel[key]) byModel[key] = [];
+      byModel[key].push(e);
+    }
 
-      var tr = document.createElement('tr');
-      tr.innerHTML =
-        '<td style="color:var(--text-muted)">' + (idx + 1) + '</td>' +
-        '<td class="model-cell">' + modelName + '</td>' +
-        '<td><span class="framework-badge ' + frameworkClass(fw) + '">' + fw + '</span></td>' +
-        '<td class="score ' + scoreClass(s) + '">' + s.toFixed(1) + '</td>' +
-        '<td style="color:var(--text-secondary)">' + formatTime(entry.time_ms) + '</td>' +
-        '<td style="color:var(--text-secondary)">' + formatTokens(entry.tokens) + '</td>' +
-        '<td style="color:var(--text-secondary)">' + costStr + '</td>';
+    var flatRows = [];
+    for (var mkey in byModel) {
+      var group = byModel[mkey];
+      var hasRaw = false, hasSpec = false;
+      for (var gi = 0; gi < group.length; gi++) {
+        if (group[gi].specialist_mode === 'raw') hasRaw = true;
+        if (group[gi].specialist_mode === 'specialist') hasSpec = true;
+      }
+      if (hasRaw && hasSpec) {
+        var specEntry = null, rawEntry = null;
+        for (var gi2 = 0; gi2 < group.length; gi2++) {
+          if (group[gi2].specialist_mode === 'specialist') specEntry = group[gi2];
+          if (group[gi2].specialist_mode === 'raw') rawEntry = group[gi2];
+        }
+        flatRows.push({ _split: true, spec: specEntry, raw: rawEntry, _model: (specEntry && specEntry.model) || (rawEntry && rawEntry.model) });
+      } else {
+        flatRows.push({ _split: false, entry: group[0] });
+      }
+    }
 
-      tr.addEventListener('click', function() { toggleModelExpand(entry, tr, idx); });
-      tbody.appendChild(tr);
+    flatRows.sort(function(a, b) {
+      var av, bv;
+      if (a._split) av = getSortValue(a.spec, modelSortKey);
+      else av = getSortValue(a.entry, modelSortKey);
+      if (b._split) bv = getSortValue(b.spec, modelSortKey);
+      else bv = getSortValue(b.entry, modelSortKey);
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+      if (av < bv) return modelSortAsc ? -1 : 1;
+      if (av > bv) return modelSortAsc ? 1 : -1;
+      return 0;
+    });
+
+    flatRows.forEach(function(row, idx) {
+      if (row._split) {
+        var specS = row.spec && row.spec.score != null ? row.spec.score : 0;
+        var rawS = row.raw && row.raw.score != null ? row.raw.score : 0;
+        var modelName = row._model || 'unknown';
+        var specFinished = row.spec && row.spec.finished_at ? new Date(row.spec.finished_at).toLocaleString() : '\u2014';
+        var specCost = row.spec && row.spec.cost_usd != null ? '\$' + row.spec.cost_usd.toFixed(4) : '\u2014';
+
+        // Main row: show specialist as primary
+        var tr = document.createElement('tr');
+        tr.innerHTML =
+          '<td style="color:var(--text-muted)">' + (idx + 1) + '</td>' +
+          '<td class="model-cell">' + modelName + '</td>' +
+          '<td class="score score-high">' + specS.toFixed(1) + ' <span style="font-size:10px;color:var(--accent);font-weight:600">SPEC</span></td>' +
+          '<td style="color:var(--text-secondary)">' + formatTime(row.spec && row.spec.time_ms) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + formatTokens(row.spec && row.spec.tokens) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + specCost + '</td>' +
+          '<td style="color:var(--text-muted);font-size:11px">' + specFinished + '</td>';
+        var self = row;
+        tr.addEventListener('click', function() { toggleModelExpand(self.spec, tr, 'spec-' + idx); });
+        tbody.appendChild(tr);
+
+        // Specialist sub-row
+        var trSpec = document.createElement('tr');
+        trSpec.className = 'sub-row specialist-sub';
+        trSpec.style.cssText = 'background:var(--bg-secondary);cursor:pointer';
+        trSpec.innerHTML =
+          '<td></td>' +
+          '<td style="padding-left:24px;color:var(--accent);font-size:13px;font-weight:500">\u251C\u2500\u2500 Specialist</td>' +
+          '<td class="score score-high">' + specS.toFixed(1) + ' <span style="font-size:10px;color:var(--accent)">avg</span></td>' +
+          '<td style="color:var(--text-secondary)">' + formatTime(row.spec && row.spec.time_ms) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + formatTokens(row.spec && row.spec.tokens) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + specCost + '</td>' +
+          '<td></td>';
+        trSpec.addEventListener('click', function(e) { e.stopPropagation(); toggleModelExpand(self.spec, trSpec, 'spec-detail-' + idx); });
+        tbody.appendChild(trSpec);
+
+        // Raw sub-row
+        var rawFinished = row.raw && row.raw.finished_at ? new Date(row.raw.finished_at).toLocaleString() : '\u2014';
+        var rawCost = row.raw && row.raw.cost_usd != null ? '\$' + row.raw.cost_usd.toFixed(4) : '\u2014';
+        var trRaw = document.createElement('tr');
+        trRaw.className = 'sub-row raw-sub';
+        trRaw.style.cssText = 'background:var(--bg-secondary);cursor:pointer';
+        trRaw.innerHTML =
+          '<td></td>' +
+          '<td style="padding-left:24px;color:var(--text-muted);font-size:13px;font-weight:500">\u2514\u2500\u2500 Raw</td>' +
+          '<td class="score ' + scoreClass(rawS) + '">' + rawS.toFixed(1) + ' <span style="font-size:10px;color:var(--text-muted)">avg</span></td>' +
+          '<td style="color:var(--text-secondary)">' + formatTime(row.raw && row.raw.time_ms) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + formatTokens(row.raw && row.raw.tokens) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + rawCost + '</td>' +
+          '<td></td>';
+        trRaw.addEventListener('click', function(e) { e.stopPropagation(); toggleModelExpand(self.raw, trRaw, 'raw-detail-' + idx); });
+        tbody.appendChild(trRaw);
+
+      } else {
+        var entry = row.entry;
+        var tr = document.createElement('tr');
+        var s = entry.score != null ? entry.score : 0;
+        var modelName = entry.model || 'unknown';
+        var costStr = entry.cost_usd != null ? '\$' + entry.cost_usd.toFixed(4) : '\u2014';
+        var finishedStr = entry.finished_at ? new Date(entry.finished_at).toLocaleString() : '\u2014';
+        tr.innerHTML =
+          '<td style="color:var(--text-muted)">' + (idx + 1) + '</td>' +
+          '<td class="model-cell">' + modelName + '</td>' +
+          '<td class="score ' + scoreClass(s) + '">' + s.toFixed(1) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + formatTime(entry.time_ms) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + formatTokens(entry.tokens) + '</td>' +
+          '<td style="color:var(--text-secondary)">' + costStr + '</td>' +
+          '<td style="color:var(--text-muted);font-size:11px">' + finishedStr + '</td>';
+
+        tr.addEventListener('click', function() { toggleModelExpand(entry, tr, idx); });
+        tbody.appendChild(tr);
+      }
     });
   }
+
 
   var expandedModelRow = null;
 
@@ -582,30 +793,140 @@ export const LEADERBOARD_HTML = `<!DOCTYPE html>
     expandedModelRow = id;
     tr.classList.add('expanded');
 
-    var s = entry.score != null ? entry.score : 0;
-    var costStr = entry.cost_usd != null ? '\\$' + entry.cost_usd.toFixed(4) : '\\u2014';
-    var effStr = entry.efficiency_score != null ? entry.efficiency_score.toFixed(1) : '\\u2014';
-    var tokPerSec = (entry.tokens && entry.time_ms) ? (entry.tokens / (entry.time_ms / 1000)).toFixed(0) : '\\u2014';
-
     var detailTr = document.createElement('tr');
     detailTr.className = 'detail-row';
-    detailTr.innerHTML = '<td colspan="7"><div class="detail-content"><div class="detail-grid">' +
-      '<div class="detail-card"><h4>Run Info</h4>' +
-        '<div class="detail-row-item"><span class="label">Model</span><span class="value">' + (entry.model || '\\u2014') + '</span></div>' +
-        '<div class="detail-row-item"><span class="label">Framework</span><span class="value">' + (entry.framework || '\\u2014') + '</span></div>' +
-        '<div class="detail-row-item"><span class="label">Cost</span><span class="value">' + costStr + '</span></div>' +
-        '<div class="detail-row-item"><span class="label">Efficiency</span><span class="value">' + effStr + '</span></div>' +
-      '</div>' +
-      '<div class="detail-card"><h4>Score</h4>' +
-        '<div class="detail-row-item"><span class="label">Score</span><span class="value score ' + scoreClass(s) + '">' + s.toFixed(1) + ' / 10</span></div>' +
-        '<div class="bar-container"><div class="bar ' + barClass(s) + '" style="width:' + (s * 10) + '%"></div></div>' +
-      '</div>' +
-      '<div class="detail-card"><h4>Performance</h4>' +
-        '<div class="detail-row-item"><span class="label">Total Time</span><span class="value">' + formatTime(entry.time_ms) + '</span></div>' +
-        '<div class="detail-row-item"><span class="label">Tokens Used</span><span class="value">' + formatTokens(entry.tokens) + '</span></div>' +
-        '<div class="detail-row-item"><span class="label">Tokens/sec</span><span class="value">' + tokPerSec + '</span></div>' +
-      '</div>' +
-    '</div></div></td>';
+
+    // Aggregated mode: show per-task breakdown with visual score bars
+    if (entry.tasks !== undefined) {
+      var judgeNames = {'judge1': 'Claude Opus', 'judge2': 'GPT-5.4', 'judge3': 'Gemini 3.1'};
+
+      // Build task rows HTML
+      var taskRowsHtml = '';
+      var taskBarMax = 0;
+      var catCount = {};
+      for (var ti = 0; ti < entry.tasks.length; ti++) {
+        var _tc = entry.tasks[ti].category || 'unknown';
+        catCount[_tc] = (catCount[_tc] || 0) + 1;
+        taskBarMax = Math.max(taskBarMax, entry.tasks[ti].score || 0);
+      }
+
+      for (var ti = 0; ti < entry.tasks.length; ti++) {
+        var task = entry.tasks[ti];
+        var isDupCat = catCount[task.category || 'unknown'] > 1;
+        var ts = task.score != null ? task.score : 0;
+        var tTime = formatTime(task.time_ms);
+        var tTok = formatTokens(task.tokens);
+        var tCost = task.cost_usd != null ? '\$' + task.cost_usd.toFixed(2) : '\u2014';
+        var barPct = taskBarMax > 0 ? (ts / taskBarMax * 100).toFixed(1) : 0;
+        var hasJudges = task.judge_breakdown && Object.keys(task.judge_breakdown).length > 0;
+
+        // Build judge badges
+        var judgeBadges = '';
+        if (hasJudges) {
+          var tj = task.judge_breakdown;
+          for (var jid in tj) {
+            var j = tj[jid];
+            var jName = judgeNames[jid] || j.name || jid;
+            var jComp = j.composite != null ? j.composite.toFixed(1) : '\u2014';
+            var jC = j.scores ? (j.scores.correctness != null ? j.scores.correctness : '\u2014') : '\u2014';
+            var jJ = j.scores ? (j.scores.judgment != null ? j.scores.judgment : '\u2014') : '\u2014';
+            var jQ = j.scores ? (j.scores.quality != null ? j.scores.quality : '\u2014') : '\u2014';
+            var jP = j.scores ? (j.scores.completeness != null ? j.scores.completeness : '\u2014') : '\u2014';
+            var shortName = jName === 'Claude Opus' ? 'Opus' : (jName === 'GPT-5.4' ? 'GPT-5.4' : (jName === 'Gemini 3.1' ? 'Gemini' : jName));
+            judgeBadges += '<div class="jb"><div class="jb-name">' + shortName + '</div>' +
+              '<div class="jb-score score ' + scoreClass(j.composite) + '">' + jComp + '</div>' +
+              '<div class="jb-dims">C:' + jC + ' J:' + jJ + ' Q:' + jQ + ' P:' + jP + '</div></div>';
+          }
+        } else {
+          judgeBadges = '<div class="jb jb-pending">Judge pending</div>';
+        }
+
+        taskRowsHtml += '<div class="task-row">' +
+          '<div class="task-name">' + (task.category || 'unknown') + (isDupCat && task.task_id ? ' <span class="task-id-hint">' + task.task_id.replace(/_/g,' ') + '</span>' : '') + '</div>' +
+          '<div class="task-score-col">' +
+            '<span class="task-score score ' + scoreClass(ts) + '">' + ts.toFixed(1) + '</span>' +
+          '</div>' +
+          '<div class="task-bar-col">' +
+            '<div class="task-bar"><div class="task-bar-fill ' + barClass(ts) + '" style="width:' + barPct + '%"></div></div>' +
+          '</div>' +
+          '<div class="task-meta-col">' +
+            '<span class="tm">' + tTime + '</span>' +
+          '</div>' +
+          '<div class="task-meta-col">' +
+            '<span class="tm">' + tTok + '</span>' +
+          '</div>' +
+          '<div class="task-meta-col">' +
+            '<span class="tm">' + tCost + '</span>' +
+          '</div>' +
+          '<div class="task-judge-col">' + judgeBadges + '</div>' +
+        '</div>';
+      }
+
+      // Score summary bar across all tasks
+      var scoreBarHtml = '<div class="score-bars">';
+      for (var si = 0; si < entry.tasks.length; si++) {
+        var st = entry.tasks[si];
+        var ss = st.score || 0;
+        scoreBarHtml += '<div class="sb-item">' +
+          '<div class="sb-label">' + (st.category || '?') + '</div>' +
+          '<div class="sb-bar-wrap"><div class="sb-bar-fill ' + barClass(ss) + '" style="width:' + (ss * 10).toFixed(1) + '%"></div></div>' +
+          '<div class="sb-val score ' + scoreClass(ss) + '">' + ss.toFixed(1) + '</div>' +
+        '</div>';
+      }
+      scoreBarHtml += '</div>';
+
+      var totalCost = entry.total_cost_usd != null ? '\$' + entry.total_cost_usd.toFixed(4) : '\u2014';
+      var totalTime = formatTime(entry.total_time_ms);
+      var totalTok = formatTokens(entry.total_tokens);
+      var avgScore = entry.avg_score != null ? entry.avg_score.toFixed(1) : '\u2014';
+
+      detailTr.innerHTML = '<td colspan="7"><div class="detail-content detail-agg">' +
+        '<div class="agg-header">' +
+          '<div class="agg-title"><span class="agg-model">' + (entry.model || '\u2014') + '</span></div>' +
+          '<div class="agg-stats">' +
+            '<div class="as-item"><span class="as-label">Best</span><span class="as-val score ' + scoreClass(entry.best_score || 0) + '">' + (entry.best_score || 0).toFixed(1) + '</span></div>' +
+            '<div class="as-item"><span class="as-label">Avg</span><span class="as-val">' + avgScore + '</span></div>' +
+            '<div class="as-item"><span class="as-label">Runs</span><span class="as-val">' + entry.run_count + '</span></div>' +
+            '<div class="as-item"><span class="as-label">Total</span><span class="as-val">' + totalTime + '</span></div>' +
+            '<div class="as-item"><span class="as-label">Tokens</span><span class="as-val">' + totalTok + '</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="agg-score-bars">' + scoreBarHtml + '</div>' +
+        '<div class="agg-table-wrap">' +
+          '<div class="agg-table-header">' +
+            '<span class="ath-name">Task</span>' +
+            '<span class="ath-score">Score</span>' +
+            '<span class="ath-bar">Performance</span>' +
+            '<span class="ath-meta">Time</span>' +
+            '<span class="ath-meta">Tokens</span>' +
+            '<span class="ath-meta">Cost</span>' +
+            '<span class="ath-judge">Judges</span>' +
+          '</div>' +
+          taskRowsHtml +
+        '</div>' +
+        '<div class="agg-legend">C = Correctness &nbsp;·&nbsp; J = Judgment &nbsp;·&nbsp; Q = Quality &nbsp;·&nbsp; P = Completeness &nbsp;·&nbsp; Judges: Opus = Claude Opus, GPT-5.4 = GPT-5.4</div>' +
+      '</div></td>';
+
+    } else {detailTr.innerHTML = '<td colspan="7"><div class="detail-content"><div class="detail-grid">' +
+        '<div class="detail-card"><h4>Run Info</h4>' +
+          '<div class="detail-row-item"><span class="label">Model</span><span class="value">' + (entry.model || '\u2014') + '</span></div>' +
+          '<div class="detail-row-item"><span class="label">Framework</span><span class="value">' + (entry.framework || '\u2014') + '</span></div>' +
+          '<div class="detail-row-item"><span class="label">Cost</span><span class="value">' + costStr + '</span></div>' +
+          '<div class="detail-row-item"><span class="label">Efficiency</span><span class="value">' + effStr + '</span></div>' +
+        '</div>' +
+        '<div class="detail-card"><h4>Score</h4>' +
+          '<div class="detail-row-item"><span class="label">Composite</span><span class="value score ' + scoreClass(s) + '">' + s.toFixed(1) + ' / 10</span></div>' +
+          '<div class="bar-container"><div class="bar ' + barClass(s) + '" style="width:' + (s * 10) + '%"></div></div>' +
+        '</div>' +
+        '<div class="detail-card judge-panel-card"><h4>Judge Panel</h4><div class="judge-grid">' + judgeHtml + '</div></div>' +
+        '<div class="detail-card"><h4>Performance</h4>' +
+          '<div class="detail-row-item"><span class="label">Total Time</span><span class="value">' + formatTime(entry.time_ms) + '</span></div>' +
+          '<div class="detail-row-item"><span class="label">Tokens Used</span><span class="value">' + formatTokens(entry.tokens) + '</span></div>' +
+          '<div class="detail-row-item"><span class="label">Tokens/sec</span><span class="value">' + tokPerSec + '</span></div>' +
+        '</div>' +
+      '</div></div></td>';
+    }
+
     tr.after(detailTr);
   }
 

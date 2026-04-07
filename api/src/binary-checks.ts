@@ -1134,6 +1134,337 @@ export function binaryCheckSystemDesign(text: string): BinaryCheckResult {
   };
 }
 
+// ---- Phase 4 Checks (Gap-fill tasks) ----
+
+export function binaryCheckPerfOptimization(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const foundN1 = /n\+1|n \+ 1/.test(textLower) || (/loop.*query/.test(textLower) && /batch|join|in \(/.test(textLower));
+  const foundSqlInjection = /sql.*inject/.test(textLower) || /string.*interpol/.test(textLower) || /parameteriz/.test(textLower);
+  const foundLikeScan = (/like.*%/.test(textLower) && /full.*(?:table|scan|text)/.test(textLower)) || /tsvector|gin.*index|full.text.search/.test(textLower);
+  const foundDuplicateQuery = /duplicate.*query/.test(textLower) || /count.*over/.test(textLower) || /cte|window.*function/.test(textLower) || /two.*(?:separate|identical).*quer/.test(textLower);
+  const foundNoCache = /cache.*(?:not|never|unused|import)/.test(textLower) || /cache.*unused/.test(textLower) || (/cache/.test(textLower) && /never.*used/.test(textLower));
+  const foundOffset = /offset.*(?:scan|slow|cursor|keyset)/.test(textLower) || /cursor.*pagination/.test(textLower);
+  let score = 0;
+  if (foundN1) score += 2.5;
+  if (foundSqlInjection) score += 2;
+  if (foundLikeScan) score += 1.5;
+  if (foundDuplicateQuery) score += 1;
+  if (foundNoCache) score += 1;
+  if (foundOffset) score += 0.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "perf_optimization", details: { found_n1: foundN1, found_sql_injection: foundSqlInjection, found_like_scan: foundLikeScan, found_duplicate_query: foundDuplicateQuery, found_no_cache: foundNoCache, found_offset: foundOffset, raw_score: score }, adjustments };
+}
+
+export function binaryCheckAmbiguousSpec(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const listEvents = /(?:comment|follow|mention|like|assign|status.*change)/.test(textLower);
+  const priorityDefined = /priority|important|urgent|push.*(?:criteria|threshold)/.test(textLower);
+  const readGranularity = /mark.*(?:all|individual|bulk).*read/.test(textLower) || /read.*(?:all|individual|bulk)/.test(textLower);
+  const digestDecision = /daily|weekly|digest.*(?:frequency|schedule)/.test(textLower);
+  const dataModel = /(?:table|schema|column).*(?:notification|user_id|type|payload|read)/.test(textLower);
+  const apiEndpoints = /(?:get|post|patch|put).*\/notif/.test(textLower) || /endpoint/.test(textLower);
+  const realtime = /websocket|sse|server.*sent|polling|real.*time/.test(textLower);
+  const v1v2Split = /v1.*v2|phase.*1|defer|later|mvp/.test(textLower);
+  const makesDecisions = /\bassume\b|\bdecision\b|\bdefault\b|\bwe'?ll\b|\bfor now\b/.test(textLower);
+  const overEngineered = /kafka|event.*sourc|saga|cqrs|distributed.*trac/.test(textLower);
+  let score = 0;
+  if (listEvents) score += 1.5;
+  if (priorityDefined) score += 1;
+  if (dataModel) score += 1.5;
+  if (apiEndpoints) score += 1;
+  if (realtime) score += 1;
+  if (v1v2Split) score += 1;
+  if (makesDecisions) score += 1;
+  if (digestDecision) score += 0.5;
+  if (readGranularity) score += 0.5;
+  if (overEngineered) score -= 1;
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "ambiguous_spec", details: { list_events: listEvents, priority_defined: priorityDefined, data_model: dataModel, api_endpoints: apiEndpoints, realtime, v1_v2_split: v1v2Split, makes_decisions: makesDecisions, over_engineered: overEngineered, raw_score: score }, adjustments };
+}
+
+export function binaryCheckTradeoff(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const clearRecommendation = /\brecommend\b.*postgres|\buse postgres|\bgo with postgres|postgres.*(?:is|would be).*(?:better|right|best)/.test(textLower) || /\bchoose\b.*postgres/.test(textLower);
+  const relationalArgument = /relational|join|foreign.*key|complex.*quer|filter.*sort/.test(textLower);
+  const teamArgument = /team.*(?:experience|expertise|know)|2.*(?:of|out of).*4|engineer.*postgres/.test(textLower);
+  const acknowledgesDynamo = /dynamo.*(?:better|advantage|strength|scale|latency)/.test(textLower) || /dynamo.*(?:would be|good for)/.test(textLower);
+  const addressesRequirements = /data.*residen|soc.*2|eu.*west|compliance/.test(textLower);
+  const migrationPath = /later.*dynamo|activity.*feed|event.*store|session/.test(textLower) || /start.*postgres.*add.*dynamo/.test(textLower);
+  let score = 0;
+  if (clearRecommendation) score += 2;
+  if (relationalArgument) score += 2;
+  if (teamArgument) score += 0.5;
+  if (acknowledgesDynamo) score += 1.5;
+  if (addressesRequirements) score += 0.5;
+  if (migrationPath) score += 1;
+  const noClearChoice = !clearRecommendation && /it depends|either.*could/.test(textLower);
+  if (noClearChoice) score -= 1;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "tradeoff", details: { clear_recommendation: clearRecommendation, relational_argument: relationalArgument, team_argument: teamArgument, acknowledges_dynamo: acknowledgesDynamo, addresses_requirements: addressesRequirements, migration_path: migrationPath, raw_score: score }, adjustments };
+}
+
+export function binaryCheckDataInterpretation(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const inverseCorrelation = (/latency.*increas/.test(textLower) && /traffic.*decreas/.test(textLower)) || /rps.*drop.*latency.*spike/.test(textLower) || /inverse/.test(textLower) || (/latency.*up/.test(textLower) && /rps.*down/.test(textLower));
+  const memoryGrowing = /memory.*grow|memory.*leak|memory.*increas|62.*89|oom/.test(textLower);
+  const cpuNotBottleneck = /cpu.*decreas|cpu.*not.*(?:bottleneck|issue)|cpu.*drop/.test(textLower);
+  const cronJob = /cron|midnight|daily.*report|scheduled.*job|00:00/.test(textLower);
+  const errorMemoryCorrelation = /error.*memory|oom.*error|gc.*pressure|timeout.*memory/.test(textLower);
+  const checkCron = /check.*cron|investigate.*cron|kill.*cron|pause.*cron|stop.*cron/.test(textLower);
+  let score = 0;
+  if (inverseCorrelation) score += 2;
+  if (memoryGrowing) score += 1.5;
+  if (cpuNotBottleneck) score += 1;
+  if (cronJob) score += 2;
+  if (errorMemoryCorrelation) score += 1;
+  if (checkCron) score += 0.5;
+  const wrongScaleUp = /scale.*up|add.*pod|more.*instance/.test(textLower) && !inverseCorrelation;
+  if (wrongScaleUp) score -= 1;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "data_interpretation", details: { inverse_correlation: inverseCorrelation, memory_growing: memoryGrowing, cpu_not_bottleneck: cpuNotBottleneck, cron_job: cronJob, error_memory_correlation: errorMemoryCorrelation, check_cron: checkCron, raw_score: score }, adjustments };
+}
+
+export function binaryCheckApiDocs(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const hasSignatureCode = /hmac|sha256|crypto/.test(textLower) && /```/.test(text);
+  const hasEventTypes = ["order.completed", "order.refunded", "payment.failed", "customer.created", "subscription.renewed", "subscription.cancelled"].filter(e => textLower.includes(e)).length;
+  const hasPayloads = /```json/.test(text) && /evt_/.test(text);
+  const hasRetryPolicy = /retry|exponential|backoff|5.*attempt/.test(textLower);
+  const hasBestPractices = /idempoten/.test(textLower) || /async.*process/.test(textLower) || /200.*quick/.test(textLower);
+  const hasTesting = /test|ngrok|debug|webhook.*cli/.test(textLower);
+  const codeBlocks = (text.match(/```/g) ?? []).length / 2;
+  const banned = checkBannedPhrases(text);
+  let score = 0;
+  if (hasSignatureCode) score += 2;
+  if (hasEventTypes >= 5) score += 1.5;
+  else if (hasEventTypes >= 3) score += 0.75;
+  if (hasPayloads) score += 1;
+  if (hasRetryPolicy) score += 0.5;
+  if (hasBestPractices) score += 1;
+  if (hasTesting) score += 0.5;
+  if (codeBlocks >= 2) score += 1;
+  score -= banned.length * 0.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 7;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "api_docs", details: { has_signature_code: hasSignatureCode, event_types_covered: hasEventTypes, has_payloads: hasPayloads, has_retry_policy: hasRetryPolicy, has_best_practices: hasBestPractices, has_testing: hasTesting, code_blocks: codeBlocks, banned_count: banned.length, raw_score: score }, adjustments };
+}
+
+export function binaryCheckPostmortem(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const hasSections = /summary|impact|timeline|root.*cause|action.*item/.test(textLower);
+  const hasTimeline = /\d{2}:\d{2}/.test(text) && /utc|gmt/.test(textLower);
+  const correctRootCause = /cache.*key.*(?:session|wrong|user.*id)/.test(textLower) || /session.*user.*id.*(?:instead|not|wrong)/.test(textLower);
+  const hasActionItems = /action.*item|\bfix\b.*cache.*key|add.*test|notif.*affected/.test(textLower);
+  const blameless = !/(?:developer|engineer|person).*(?:fault|blame|mistake|caused)/.test(textLower) || /blameless/.test(textLower);
+  const hasMitigation = /verif|test.*multi.*user|data.*isolation|ci.*cd.*check/.test(textLower);
+  const notifyUsers = /notif.*(?:affected|user|customer)|disclosure|privacy/.test(textLower);
+  const banned = checkBannedPhrases(text);
+  let score = 0;
+  if (hasSections) score += 1.5;
+  if (hasTimeline) score += 0.5;
+  if (correctRootCause) score += 2;
+  if (hasActionItems) score += 1.5;
+  if (blameless) score += 1;
+  if (hasMitigation) score += 1;
+  if (notifyUsers) score += 0.5;
+  score -= banned.length * 0.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "postmortem", details: { has_sections: hasSections, has_timeline: hasTimeline, correct_root_cause: correctRootCause, has_action_items: hasActionItems, blameless, has_mitigation: hasMitigation, notify_users: notifyUsers, raw_score: score }, adjustments };
+}
+
+export function binaryCheckSupplyChain(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const foundTyposquat = /winstons/.test(textLower) && (/typo|typosquat|wrong.*package|not.*winston\b|different.*name/.test(textLower));
+  const foundMaliciousScript = /setup\.js.*malicious|malicious.*setup|download.*external|suspicious.*url|cdn-config/.test(textLower) || (/setup\.js/.test(textLower) && /execut.*external.*code/.test(textLower));
+  const foundPreinstallDep = /preinstall.*(?:dependency|package|suspicious|npm)/.test(textLower) || /package.*called.*preinstall/.test(textLower);
+  const foundPreinstallHook = /preinstall.*(?:script|hook|lifecycle)/.test(textLower) || /npm.*install.*auto.*run/.test(textLower);
+  const foundSilentErrors = /silent.*error|catch.*empty|error.*swallow|ignore.*error/.test(textLower) && /setup/.test(textLower);
+  const foundNoopDiffs = /no.*op|identical|unchanged|noise|identical.*line|hide.*real.*change/.test(textLower);
+  const blockedPr = /don'?t.*merge|do not.*merge|block|reject|not.*safe/.test(textLower);
+  let score = 0;
+  if (foundTyposquat) score += 2.5;
+  if (foundMaliciousScript) score += 2.5;
+  if (foundPreinstallDep) score += 1.5;
+  if (foundPreinstallHook) score += 1;
+  if (foundSilentErrors) score += 0.5;
+  if (foundNoopDiffs) score += 0.5;
+  if (blockedPr) score += 1;
+  const approvedPr = /looks.*(?:good|fine)|approve|lgtm/.test(textLower) && !blockedPr;
+  if (approvedPr) score -= 3;
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) adjustments["correctness_floor"] = 9;
+  else if (score >= 4) adjustments["correctness_floor"] = 6;
+  else if (score <= 1) adjustments["correctness_ceiling"] = 3;
+  return { check_name: "supply_chain", details: { found_typosquat: foundTyposquat, found_malicious_script: foundMaliciousScript, found_preinstall_dep: foundPreinstallDep, found_preinstall_hook: foundPreinstallHook, found_silent_errors: foundSilentErrors, found_noop_diffs: foundNoopDiffs, blocked_pr: blockedPr, raw_score: score }, adjustments };
+}
+
+export function binaryCheckPromptInjection(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const foundDirectOverride = /direct.*(?:prompt|instruction).*(?:override|inject|ignore)/.test(textLower) || /ignore.*(?:previous|all).*instruction/.test(textLower);
+  const foundRolePlay = /role.*play|roleplay|pretend|act.*as/.test(textLower) && /bypass|override|ignore/.test(textLower);
+  const foundDataExfil = /data.*exfil|access.*other.*customer|look.*up.*other|tool.*abuse/.test(textLower);
+  const foundIndirectInjection = /customer\.name|customer\.email|indirect.*inject|field.*inject/.test(textLower) || (/interpolat/.test(textLower) && /customer/.test(textLower) && /inject/.test(textLower));
+  const foundDelimiterEscape = /delimiter|---.*escape|separator.*weak|fake.*system/.test(textLower);
+  const foundToolAuth = /tool.*(?:level|side).*(?:auth|check|valid)|independent.*(?:check|valid).*(?:tool|refund)/.test(textLower) || /refund.*tool.*check.*amount/.test(textLower);
+  const foundSanitize = /sanitiz|escap.*input|input.*valid/.test(textLower);
+  const foundStructuredMessages = /structured.*message|system.*user.*role|separate.*role/.test(textLower);
+  let score = 0;
+  if (foundDirectOverride) score += 2;
+  if (foundRolePlay) score += 1.5;
+  if (foundDataExfil) score += 1.5;
+  if (foundIndirectInjection) score += 2;
+  if (foundDelimiterEscape) score += 0.5;
+  if (foundToolAuth) score += 1;
+  if (foundSanitize) score += 0.5;
+  if (foundStructuredMessages) score += 0.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) adjustments["correctness_floor"] = 9;
+  else if (score >= 4) adjustments["correctness_floor"] = 6;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "prompt_injection", details: { found_direct_override: foundDirectOverride, found_role_play: foundRolePlay, found_data_exfil: foundDataExfil, found_indirect_injection: foundIndirectInjection, found_delimiter_escape: foundDelimiterEscape, found_tool_auth: foundToolAuth, found_sanitize: foundSanitize, raw_score: score }, adjustments };
+}
+
+export function binaryCheckSchemaDesign(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const hasProviders = /\bproviders?\b.*\btable\b|create.*table.*provider/.test(textLower);
+  const hasLocations = /\blocations?\b.*\btable\b|create.*table.*location/.test(textLower);
+  const hasServices = /\bservices?\b.*\btable\b|create.*table.*service/.test(textLower);
+  const hasAvailability = /\bavailability\b.*\btable\b|\bschedule\b.*\btable\b|create.*table.*availab/.test(textLower);
+  const hasBookings = /\bbookings?\b.*\btable\b|create.*table.*booking/.test(textLower);
+  const hasDoubleBooking = /exclude.*constraint|tsrange|tstzrange|select.*for.*update|advisory.*lock|unique.*(?:service|time)/.test(textLower);
+  const hasTimezone = /timestamptz|utc|timezone/.test(textLower);
+  const hasCapacity = /capacity|max.*participant|seat|slot.*count/.test(textLower) && /group|class|multi/.test(textLower);
+  const hasWaitlist = /waitlist|wait.*list|queue/.test(textLower);
+  let score = 0;
+  if (hasProviders) score += 0.5;
+  if (hasLocations) score += 0.5;
+  if (hasServices) score += 0.5;
+  if (hasAvailability) score += 1;
+  if (hasBookings) score += 1;
+  if (hasDoubleBooking) score += 2;
+  if (hasTimezone) score += 1;
+  if (hasCapacity) score += 0.5;
+  if (hasWaitlist) score += 0.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score >= 4) adjustments["correctness_floor"] = 6;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "schema_design", details: { has_providers: hasProviders, has_locations: hasLocations, has_services: hasServices, has_availability: hasAvailability, has_bookings: hasBookings, has_double_booking: hasDoubleBooking, has_timezone: hasTimezone, has_capacity: hasCapacity, has_waitlist: hasWaitlist, raw_score: score }, adjustments };
+}
+
+// Agent bench checks — simpler since we're scoring the response text
+
+export function binaryCheckAgentAuth(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const hasMiddleware = /middleware|auth.*middleware|jwt.*verify|verify.*token/.test(textLower);
+  const hasRegister = /register|sign.*up|create.*user/.test(textLower) && /endpoint|route|post/.test(textLower);
+  const hasLogin = /login|sign.*in|authenticate/.test(textLower) && /endpoint|route|post|token/.test(textLower);
+  const hasPasswordHash = /bcrypt|scrypt|hash.*password|password.*hash|argon/.test(textLower);
+  const hasJwt = /jwt|jsonwebtoken|json.*web.*token|sign.*token/.test(textLower);
+  const has401 = /401|unauthorized/.test(textLower);
+  let score = 0;
+  if (hasMiddleware) score += 2;
+  if (hasRegister) score += 1.5;
+  if (hasLogin) score += 1.5;
+  if (hasPasswordHash) score += 1;
+  if (hasJwt) score += 2;
+  if (has401) score += 1;
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) adjustments["correctness_floor"] = 8;
+  else if (score <= 3) adjustments["correctness_ceiling"] = 5;
+  return { check_name: "agent_auth", details: { has_middleware: hasMiddleware, has_register: hasRegister, has_login: hasLogin, has_password_hash: hasPasswordHash, has_jwt: hasJwt, has_401: has401, raw_score: score }, adjustments };
+}
+
+export function binaryCheckAgentCiFix(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const fixedConsoleLog = /console\.log|no-console|eslint.*disable|logger/.test(textLower) && /fix|resolv|chang/.test(textLower);
+  const fixedUnusedExport = /unused.*export|sanitize.*input|remove.*unused|no-unused/.test(textLower);
+  const fixedVitest = /vitest.*config|vitest\.config|globals.*true|remove.*vitest.*globals.*types/.test(textLower);
+  let score = 0;
+  if (fixedConsoleLog) score += 2.5;
+  if (fixedUnusedExport) score += 2.5;
+  if (fixedVitest) score += 2.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) adjustments["correctness_floor"] = 8;
+  else if (score <= 2.5) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "agent_ci_fix", details: { fixed_console_log: fixedConsoleLog, fixed_unused_export: fixedUnusedExport, fixed_vitest: fixedVitest, raw_score: score }, adjustments };
+}
+
+export function binaryCheckAgentRecovery(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const assessedSituation = /mismatch|out.*of.*sync|migration.*applied.*code.*old|code.*v2\.4\.0.*migration/.test(textLower);
+  const choseRollForward = /roll.*forward|continue|fix.*migration|don'?t.*roll.*back/.test(textLower) || (/fix/.test(textLower) && /003/.test(text) && /continue|apply/.test(textLower));
+  const fixedMigration = /analytics_events|events.*wrong.*table|rename.*events.*to.*analytics/.test(textLower) && /003/.test(text);
+  const appliedRemaining = /004|apply.*remaining|run.*rest/.test(textLower);
+  const updatedCode = /v2\.4\.1|db\.v2|new.*code|deploy.*new/.test(textLower);
+  let score = 0;
+  if (assessedSituation) score += 2;
+  if (choseRollForward) score += 1;
+  if (fixedMigration) score += 2;
+  if (appliedRemaining) score += 1.5;
+  if (updatedCode) score += 1.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "agent_recovery", details: { assessed_situation: assessedSituation, chose_roll_forward: choseRollForward, fixed_migration: fixedMigration, applied_remaining: appliedRemaining, updated_code: updatedCode, raw_score: score }, adjustments };
+}
+
+export function binaryCheckAgentPlanning(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const addedTypeModule = /"type".*"module"|type.*module.*package/.test(textLower);
+  const convertedImports = /require.*import|import.*from|convert.*require/.test(textLower);
+  const convertedExports = /module\.exports.*export|export.*function|convert.*export/.test(textLower);
+  const fixedDirname = /import\.meta\.url|fileurltopath|__dirname.*replacement/.test(textLower);
+  const fixedJsonRequire = /createRequire|readFile.*package\.json|fs.*read.*json/.test(textLower);
+  const addedJsExtensions = /\.js.*extension|add.*\.js|extension.*import/.test(textLower);
+  let score = 0;
+  if (addedTypeModule) score += 1;
+  if (convertedImports) score += 2;
+  if (convertedExports) score += 1;
+  if (fixedDirname) score += 1.5;
+  if (fixedJsonRequire) score += 1;
+  if (addedJsExtensions) score += 1.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 6) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "agent_planning", details: { added_type_module: addedTypeModule, converted_imports: convertedImports, converted_exports: convertedExports, fixed_dirname: fixedDirname, fixed_json_require: fixedJsonRequire, added_js_extensions: addedJsExtensions, raw_score: score }, adjustments };
+}
+
+export function binaryCheckAgentResearch(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+  const allMethods = ["createcharge", "getcharge", "refundcharge", "listcharges", "createcustomer", "attachpaymentmethod"].filter(m => textLower.includes(m)).length;
+  const hasErrorHandling = /error.*handling|catch.*error|card_error|rate_limit_error/.test(textLower);
+  const hasGettingStarted = /getting.*started|quick.*start|install|setup/.test(textLower);
+  const hasPagination = /pagination|has_more|starting_after|cursor/.test(textLower);
+  const hasCodeExamples = (text.match(/```/g) ?? []).length >= 4;
+  const hasIdempotency = /idempoten/.test(textLower);
+  const hasRateLimit = /rate.*limit|100.*request/.test(textLower);
+  let score = 0;
+  if (allMethods >= 5) score += 2;
+  else if (allMethods >= 3) score += 1;
+  if (hasErrorHandling) score += 1.5;
+  if (hasGettingStarted) score += 1.5;
+  if (hasPagination) score += 1;
+  if (hasCodeExamples) score += 1.5;
+  if (hasIdempotency) score += 0.5;
+  if (hasRateLimit) score += 0.5;
+  const adjustments: Record<string, number> = {};
+  if (score >= 7) adjustments["correctness_floor"] = 8;
+  else if (score <= 2) adjustments["correctness_ceiling"] = 4;
+  return { check_name: "agent_research", details: { methods_documented: allMethods, has_error_handling: hasErrorHandling, has_getting_started: hasGettingStarted, has_pagination: hasPagination, has_code_examples: hasCodeExamples, has_idempotency: hasIdempotency, raw_score: score }, adjustments };
+}
+
 /** Map of function names to their implementations */
 export const BINARY_CHECK_FUNCTIONS: Record<
   string,
@@ -1159,6 +1490,22 @@ export const BINARY_CHECK_FUNCTIONS: Record<
   binary_check_writing_v2: binaryCheckWritingV2,
   binary_check_restraint_v2: binaryCheckRestraintV2,
   binary_check_system_design: binaryCheckSystemDesign,
+  // Phase 4 — Gap-fill tasks
+  binary_check_perf_optimization: binaryCheckPerfOptimization,
+  binary_check_ambiguous_spec: binaryCheckAmbiguousSpec,
+  binary_check_tradeoff: binaryCheckTradeoff,
+  binary_check_data_interpretation: binaryCheckDataInterpretation,
+  binary_check_api_docs: binaryCheckApiDocs,
+  binary_check_postmortem: binaryCheckPostmortem,
+  binary_check_supply_chain: binaryCheckSupplyChain,
+  binary_check_prompt_injection: binaryCheckPromptInjection,
+  binary_check_schema_design: binaryCheckSchemaDesign,
+  // Agent bench checks
+  binary_check_agent_auth: binaryCheckAgentAuth,
+  binary_check_agent_ci_fix: binaryCheckAgentCiFix,
+  binary_check_agent_recovery: binaryCheckAgentRecovery,
+  binary_check_agent_planning: binaryCheckAgentPlanning,
+  binary_check_agent_research: binaryCheckAgentResearch,
 };
 
 /**
