@@ -1633,6 +1633,273 @@ export function binaryCheckMultiStep(text: string): BinaryCheckResult {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task: design-api-collab — Collaborative Whiteboard API Design
+// Validates: REST conventions, WebSocket events, auth, error format, pagination
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function binaryCheckApiDesign(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // REST conventions
+  const hasNounPlural = /boards|elements|comments|users|organizations/.test(textLower);
+  const hasRestfulUrls =
+    /(\/boards|\/users|\/elements|\/comments|\/[a-z_]+\/\{id\})/.test(text);
+
+  // WebSocket / real-time
+  const hasWebSocket =
+    /websocket|ws:\/\/|wss:\/\//.test(textLower) ||
+    /connection.*auth|authenticate.*connection/.test(textLower);
+  const hasEventTypes =
+    /board\.updated|board\.joined|element\.created|user\.cursor/.test(textLower) ||
+    /cursor\.move|shape\.update|event\.types/.test(textLower);
+
+  // Authentication
+  const hasBearerJwt =
+    /bearer.*token|bearer.*jwt|authorization.*bearer|jwt.*auth/.test(textLower);
+  const hasApiKey = /api.?key|api.?key.*header|x-api-key/.test(textLower);
+
+  // Error response format
+  const hasProblemJson =
+    /problem\+json|application\/problem\+json/.test(textLower) ||
+    (/error.*code|status.*code|error.*message/.test(textLower) && /application\/json/.test(textLower));
+  const hasErrorCodes =
+    /4\d{2}|5\d{2}|[A-Z]+_[A-Z_]+/.test(text); // HTTP codes or SHOUTY_SNAKE_CASE
+
+  // Pagination
+  const hasPagination =
+    /cursor|pagination|page|limit|offset|has_more|next_cursor/.test(textLower);
+
+  // Rate limiting
+  const hasRateLimiting =
+    /rate.*limit|x-rate.*limit|rate.*limit.*header|429.*too.*many/.test(textLower) ||
+    /rate.*limit.*strategy|sliding.*window|fixed.*window/.test(textLower);
+
+  // Conflict resolution
+  const hasConflictResolution =
+    /operational.*transform|OT|conflict.*resolution|last.*write.*wins|OTT|crdt/.test(textLower) ||
+    /concurrent.*edit|merge.*strategy/.test(textLower);
+
+  // Scalability
+  const hasScalability =
+    /shard|partition|scale|horizontal|cache|cdn|read.*replica/.test(textLower);
+
+  const checks = [
+    hasNounPlural,
+    hasRestfulUrls,
+    hasWebSocket,
+    hasEventTypes,
+    hasBearerJwt || hasApiKey,
+    hasProblemJson || hasErrorCodes,
+    hasPagination,
+    hasRateLimiting,
+    hasConflictResolution,
+    hasScalability,
+  ];
+  const score = checks.filter(Boolean).length;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 9) adjustments["correctness_floor"] = 8;
+  else if (score >= 7) adjustments["correctness_floor"] = 6;
+  else if (score <= 3) adjustments["quality_ceiling"] = 4;
+
+  return {
+    check_name: "api_design",
+    details: {
+      has_restful_urls: hasRestfulUrls,
+      has_websocket: hasWebSocket,
+      has_event_types: hasEventTypes,
+      has_auth: hasBearerJwt || hasApiKey,
+      has_error_format: hasProblemJson,
+      has_error_codes: hasErrorCodes,
+      has_pagination: hasPagination,
+      has_rate_limiting: hasRateLimiting,
+      has_conflict_resolution: hasConflictResolution,
+      has_scalability: hasScalability,
+      score,
+    },
+    adjustments,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task: design-incident-postmortem — Incident Postmortem Writing
+// Validates: timeline, root cause, contributing factors, action items
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function binaryCheckIncidentPostmortem(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Timeline present with timestamps
+  const hasTimeline =
+    /\d{2}:\d{2}|\d{4}-\d{2}-\d{2}.*\d{2}:\d{2}/.test(text) &&
+    /(14:|15:|16:|timeline|chronology|sequence of events)/.test(textLower);
+
+  // Root cause is specific (not vague)
+  const hasSpecificRootCause =
+    /redis.*ttl|balance.*stale|cache.*stale|ttl.*60.*second|stale.*balance/.test(textLower) ||
+    /(root cause|primary cause|underlying cause).{0,50}(redis|cache|deployment|config|misconfig)/.test(textLower) ||
+    /cache.*layer.*introduced.*ttl|new.*version.*added.*cache/.test(textLower);
+
+  // Contributing factors identified
+  const hasContributingFactors =
+    /contributing factor|underlying issue|systemic|process.*gap|tooling|architecture.*issue/.test(textLower) ||
+    /(two|2).*deploy.*within|deployment.*window|no integration test/.test(textLower);
+
+  // Impact quantified
+  const hasImpact =
+    /\d+.*customer|\d+.*transaction|\$|revenue|3,400|8,200|2h.*47m|2.*47/.test(text) ||
+    /impact.{0,30}(customers|transactions|duration|revenue)/.test(textLower);
+
+  // Action items are specific and time-bound
+  const actionItemMatches = text.match(/(?:action item|todo|fix|implement|add|create|update|investigate).{0,100}(?:by|owner|@|assigned|timeline|week|day|month)/gi);
+  const hasSpecificActions = (actionItemMatches?.length ?? 0) >= 3;
+
+  // Action items have owners/dates
+  const hasTimeBoundActions =
+    /@\w+|owner|assigned to|by.*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)|@engineering|@platform|week \d/.test(textLower);
+
+  // What went well
+  const hasWhatWentWell =
+    /what went well|positive|worked well|effective|good.*response/.test(textLower);
+
+  // No blame language
+  const hasBlameless =
+    !/blame|fault|responsible.*mistake|should have caught|failure.*engineer/.test(textLower);
+
+  // Detection speed discussed
+  const hasDetectionAnalysis =
+    /detection|alert.*fired|time.*detect|14:23|14:25|pagerduty|response time|02:47/.test(textLower);
+
+  const checks = [
+    hasTimeline,
+    hasSpecificRootCause,
+    hasContributingFactors,
+    hasImpact,
+    hasSpecificActions,
+    hasTimeBoundActions,
+    hasWhatWentWell,
+    hasBlameless,
+    hasDetectionAnalysis,
+  ];
+  const score = checks.filter(Boolean).length;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 8) adjustments["correctness_floor"] = 8;
+  else if (score >= 6) adjustments["correctness_floor"] = 6;
+  else if (score <= 3) adjustments["quality_ceiling"] = 4;
+
+  return {
+    check_name: "incident_postmortem",
+    details: {
+      has_timeline: hasTimeline,
+      has_specific_root_cause: hasSpecificRootCause,
+      has_contributing_factors: hasContributingFactors,
+      has_impact_quantified: hasImpact,
+      action_item_count: actionItemMatches?.length ?? 0,
+      has_specific_actions: hasSpecificActions,
+      has_time_bound_actions: hasTimeBoundActions,
+      has_what_went_well: hasWhatWentWell,
+      has_blameless_tone: hasBlameless,
+      has_detection_analysis: hasDetectionAnalysis,
+      score,
+    },
+    adjustments,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task: design-slo — SLO and Alerting Design
+// Validates: SLOs defined, error budget math, alerting tiers, SLI definitions
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function binaryCheckSloDesign(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // SLO targets defined (numbers with %)
+  const sloMatches = text.match(/\d+\.?\d*%/g);
+  const hasSlos = (sloMatches?.length ?? 0) >= 2;
+
+  // Specific SLOs (not vague)
+  const hasLatencySlo =
+    /latency|p99|latency.*slo|slo.*latency|response.*time.*slo|dashboard.*load/.test(textLower);
+  const hasAvailabilitySlo =
+    /availability|uptime|availability.*slo|slo.*availability|99\.|99\.5/.test(textLower);
+
+  // Error budget (quantified)
+  const hasErrorBudget =
+    /error budget|error.*budget|monthly.*budget|budget.*remaining|consumed.*\d+%|\d+\%.*budget/.test(textLower) ||
+    /(4.32|8.64|21.9|43.8|87.6|131.4).*minutes/.test(text); // common error budget numbers
+
+  // SLIs defined
+  const hasSLIs =
+    /sli|indicator|measurement.*method|how.*measure|metrics.*defining/.test(textLower) ||
+    /good.*request|valid.*request|total.*request/.test(textLower);
+
+  // Alerting tiers defined
+  const hasWarningCritical =
+    /(warning|critical|emergency|p1|p2|p3|severity|tier).{0,30}(alert|page|respond)|/.test(textLower) ||
+    /(p1|p2|p3|warning|critical).*alert|respond.*time|escalat/.test(textLower);
+
+  // Burn rate alerting
+  const hasBurnRate =
+    /burn.*rate|burn.*alert|error.*budget.*burn|fast.*burn|slow.*burn/.test(textLower);
+
+  // On-call runbook
+  const hasRunbook =
+    /runbook|check.*first|common.*failure|escalat|failure.*pattern/.test(textLower) ||
+    /(status|page|contact|notify).*(on-call|oncall|lead|engineer)/.test(textLower);
+
+  // Dashboard metrics listed
+  const dashboardMetrics = [
+    /request.*rate|latency|error.*rate|availability|cache.*hit|db.*query/.test(textLower),
+    /cpu|memory|heap|connection.*pool|thread/.test(textLower),
+    /stripe.*error|payment.*success|webhook.*delivery/.test(textLower),
+  ];
+  const hasDashboardMetrics = dashboardMetrics.filter(Boolean).length >= 2;
+
+  // What to instrument first (prioritization)
+  const hasPrioritization =
+    /priority|instrument|first|most.*impact|quick.*win|critical.*path/.test(textLower);
+
+  const checks = [
+    hasSlos,
+    hasLatencySlo,
+    hasAvailabilitySlo,
+    hasErrorBudget,
+    hasSLIs,
+    hasWarningCritical,
+    hasBurnRate,
+    hasRunbook,
+    hasDashboardMetrics,
+    hasPrioritization,
+  ];
+  const score = checks.filter(Boolean).length;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 8) adjustments["correctness_floor"] = 8;
+  else if (score >= 6) adjustments["correctness_floor"] = 6;
+  else if (score <= 3) adjustments["quality_ceiling"] = 4;
+
+  return {
+    check_name: "slo_design",
+    details: {
+      slo_count: sloMatches?.length ?? 0,
+      has_latency_slo: hasLatencySlo,
+      has_availability_slo: hasAvailabilitySlo,
+      has_error_budget: hasErrorBudget,
+      has_sli_definitions: hasSLIs,
+      has_alerting_tiers: hasWarningCritical,
+      has_burn_rate_alerting: hasBurnRate,
+      has_runbook: hasRunbook,
+      has_dashboard_metrics: hasDashboardMetrics,
+      has_prioritization: hasPrioritization,
+      score,
+    },
+    adjustments,
+  };
+}
+
 export const BINARY_CHECK_FUNCTIONS: Record<
   string,
   (text: string) => BinaryCheckResult
@@ -1670,6 +1937,10 @@ export const BINARY_CHECK_FUNCTIONS: Record<
   // Seed task fixes (was NULL in 0002)
   binary_check_design: binaryCheckDesign,
   binary_check_multi_step: binaryCheckMultiStep,
+  // Design expansion (0010)
+  binary_check_api_design: binaryCheckApiDesign,
+  binary_check_incident_postmortem: binaryCheckIncidentPostmortem,
+  binary_check_slo_design: binaryCheckSloDesign,
   // Agent bench checks
   binary_check_agent_auth: binaryCheckAgentAuth,
   binary_check_agent_ci_fix: binaryCheckAgentCiFix,
