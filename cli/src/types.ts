@@ -4,8 +4,8 @@
 
 export type BenchType = "model" | "agent";
 
-export type ModelCategory = "code" | "writing" | "reasoning" | "design" | "safety";
-export type AgentCategory = "coding" | "research" | "ops" | "recovery" | "planning";
+export type ModelCategory = "code" | "writing" | "reasoning" | "design" | "safety" | "personality";
+export type AgentCategory = "coding" | "research" | "ops" | "recovery" | "planning" | "persona" | "design";
 
 export const MODEL_CATEGORIES: readonly ModelCategory[] = [
   "code",
@@ -13,6 +13,7 @@ export const MODEL_CATEGORIES: readonly ModelCategory[] = [
   "reasoning",
   "design",
   "safety",
+  "personality",
 ] as const;
 
 export const AGENT_CATEGORIES: readonly AgentCategory[] = [
@@ -21,17 +22,21 @@ export const AGENT_CATEGORIES: readonly AgentCategory[] = [
   "ops",
   "recovery",
   "planning",
+  "persona",
+  "design",
 ] as const;
 
 export interface BenchResult {
   bench_type: BenchType;
   category: string;
+  taskId?: string;
+  runId?: string;
   score: number | null;
   maxScore: number;
   timeMs: number;
   tokens: number;
   status: string;
-  specialist?: boolean;
+  specialist: boolean;
   error?: string;
 }
 
@@ -49,11 +54,17 @@ export interface ModelBenchOptions {
   cli?: string;
   specialist: boolean;
   specialist_mode?: "raw" | "specialist" | "both";
+  parallel?: boolean;
+  retries?: number;
+  retryDelay?: number;
   category?: string;
   modelName?: string;
   framework?: string;
   server?: string;
   json: boolean;
+  temperature?: number;
+  maxTokens?: number;
+  runs?: number;  // number of full benchmark repetitions (default: 1)
 }
 
 export interface AgentBenchOptions {

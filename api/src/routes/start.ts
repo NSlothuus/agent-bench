@@ -42,7 +42,7 @@ export async function handleStart(
     .first<{ count: number }>();
 
   if (rateLimitResult !== null && rateLimitResult.count >= MAX_RUNS_PER_HOUR) {
-    return errorResponse("Rate limit exceeded. Max 10 runs per hour.", 429);
+    return errorResponse("Rate limit exceeded. Max 100 runs per hour.", 429);
   }
 
   // Pick a random active task filtered by bench_type

@@ -85,6 +85,8 @@ export class ApiClient {
       total_tokens?: number;
       total_cost_usd?: number;
       config_hash?: string;
+      workspace_snapshot?: object;
+      execution_trace?: string[];
       specialist_mode?: "raw" | "specialist";
     },
   ): Promise<SubmitResponse> {

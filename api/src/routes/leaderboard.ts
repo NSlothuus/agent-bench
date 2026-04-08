@@ -222,15 +222,16 @@ async function handleModelLeaderboard(
     const hasAllCats = STANDARD_CATS.size === g.tasks.length &&
       [...STANDARD_CATS].every((c: string) => cats.has(c));
     if (!hasAllCats) continue;
-    const allJudged = g.tasks.every((t: any) => {
+    // Accept runs with at least 1 judge score (was ≥2 — too strict, excluded most runs)
+    const hasJudgedScores = g.tasks.every((t: any) => {
       if (!t.judge_scores) return false;
       try {
         const j = JSON.parse(t.judge_scores);
         const judgedCount = JUDGE_KEYS.filter((jk) => j[jk] && j[jk].composite != null).length;
-        return judgedCount >= 2;
+        return judgedCount >= 1;
       } catch { return false; }
     });
-    if (!allJudged) continue;
+    if (!hasJudgedScores) continue;
     completeRuns.push(g);
   }
 

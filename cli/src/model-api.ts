@@ -29,6 +29,8 @@ export async function callModelApi(
   options?: {
     apiKey?: string;
     systemPrompt?: string;
+    temperature?: number;
+    maxTokens?: number;
   },
 ): Promise<ModelResponse> {
   const start = Date.now();
@@ -62,8 +64,8 @@ export async function callModelApi(
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.7,
-        max_tokens: 8192,
+        temperature: options?.temperature ?? 0.0,
+        max_tokens: options?.maxTokens ?? 8192,
       }),
       signal: controller.signal,
     });

@@ -10,10 +10,11 @@
 
 import { parseArgs } from "node:util";
 import { ApiClient } from "../api-client.js";
-import { printLeaderboard } from "../display.js";
+import { printLeaderboard, printAgentScorecard, type TaskResult } from "../display.js";
 import { AGENT_CATEGORIES } from "../types.js";
 import { callModelCli } from "../model-cli.js";
 import { callModelApi } from "../model-api.js";
+import { createWorkspace, captureWorkspace, cleanupWorkspace } from "../workspace.js";
 
 function printAgentUsage(): void {
   const usage = `
@@ -161,14 +162,9 @@ async function handleAgentRun(args: string[]): Promise<void> {
     process.stderr.write("\n");
   }
 
-  const results: Array<{
-    category: string;
-    score: number | null;
-    timeMs: number;
-    tokens: number;
-    status: string;
-    error?: string;
-  }> = [];
+  // Align with TaskResult interface: add maxScore and specialist
+  const results: TaskResult[] = [];
+  let workspacePath: string | undefined;
 
   for (let i = 0; i < categories.length; i++) {
     const category = categories[i];
@@ -176,19 +172,28 @@ async function handleAgentRun(args: string[]): Promise<void> {
       process.stderr.write(`  [${i + 1}/${categories.length}] ${category}: Fetching task...\n`);
     }
 
+    let taskId: string | undefined;
+    let runId: string | undefined;
+
     try {
       // 1. Fetch task from API
       const task = await client.start(category, "agent");
+      taskId = task.task_id;
+      runId = task.run_id;
+
+      // 2. Create isolated workspace for this task
+      workspacePath = await createWorkspace(runId, {});
 
       if (!values.json) {
         process.stderr.write(`  [${i + 1}/${categories.length}] ${category}: Sending to agent...\n`);
       }
 
-      // 2. Send task to agent (via CLI pipe or API)
+      // 3. Send task to agent (via CLI pipe or API)
       const agentPrompt =
         `You are being benchmarked. Complete this task to the best of your ability using all available tools and capabilities.\n\n` +
         `Category: ${category}\n` +
-        `Task ID: ${task.task_id}\n\n` +
+        `Task ID: ${task.task_id}\n` +
+        `Workspace: ${workspacePath}\n\n` +
         task.task_prompt;
 
       let response: { text: string; tokens: number; timeMs: number };
@@ -201,20 +206,25 @@ async function handleAgentRun(args: string[]): Promise<void> {
         });
       }
 
+      // 4. Capture workspace state for reproducibility audit
+      const snapshot = await captureWorkspace(workspacePath);
+
       if (!values.json) {
         process.stderr.write(`  [${i + 1}/${categories.length}] ${category}: Submitting for scoring...\n`);
       }
 
-      // 3. Submit for scoring
-      const score = await client.submit(task.run_id, response.text, {
+      // 5. Submit for scoring
+      const score = await client.submit(runId, response.text, {
         model_name: displayName,
         framework,
         total_tokens: response.tokens,
+        workspace_snapshot: snapshot,
       });
 
       results.push({
         category,
         score: score.estimated_final,
+        maxScore: 10,
         timeMs: response.timeMs,
         tokens: response.tokens,
         status: score.binary_score?.summary ?? score.status,
@@ -233,6 +243,7 @@ async function handleAgentRun(args: string[]): Promise<void> {
       results.push({
         category,
         score: null,
+        maxScore: 10,
         timeMs: 0,
         tokens: 0,
         status: "failed",
@@ -241,6 +252,11 @@ async function handleAgentRun(args: string[]): Promise<void> {
 
       if (!values.json) {
         process.stderr.write(`    ❌ ${category}: ${msg}\n`);
+      }
+    } finally {
+      // 6. Always clean up workspace
+      if (workspacePath !== undefined) {
+        await cleanupWorkspace(workspacePath).catch(() => { /* best effort */ });
       }
     }
   }
@@ -262,6 +278,7 @@ async function handleAgentRun(args: string[]): Promise<void> {
       results: results.map((r) => ({
         category: r.category,
         score: r.score,
+        max_score: r.maxScore,
         time_ms: r.timeMs,
         tokens: r.tokens,
         status: r.status,
@@ -270,35 +287,12 @@ async function handleAgentRun(args: string[]): Promise<void> {
       leaderboard_url: "https://bench.rapid42.com",
     }, null, 2) + "\n");
   } else {
-    const scored = results.filter((r) => r.score !== null);
-    const composite = scored.length > 0
-      ? scored.reduce((sum, r) => sum + (r.score ?? 0), 0) / scored.length
-      : 0;
-    const totalTime = results.reduce((sum, r) => sum + r.timeMs, 0);
-    const totalTokens = results.reduce((sum, r) => sum + r.tokens, 0);
-
-    process.stderr.write("\n");
-    process.stderr.write("  ╔══════════════════════════════════════╗\n");
-    process.stderr.write("  ║    AGENT BENCH — Results             ║\n");
-    process.stderr.write(`  ║  Agent: ${pad(displayName, 28)}║\n`);
-    process.stderr.write(`  ║  Framework: ${pad(framework, 24)}║\n`);
-    process.stderr.write(`  ║  Composite: ${pad(`${composite.toFixed(2)}/10`, 24)}║\n`);
-    process.stderr.write(`  ║  Time: ${pad(formatTimeShort(totalTime), 29)}║\n`);
-    process.stderr.write(`  ║  Tokens: ${pad(totalTokens.toLocaleString("en-US"), 27)}║\n`);
-    process.stderr.write("  ╠══════════════════════════════════════╣\n");
-
-    for (const r of results) {
-      const scoreStr = r.score !== null ? `${r.score}/10` : "--";
-      const icon = r.error ? "❌" : r.score !== null && r.score >= 7 ? "✅" : "⚠️";
-      process.stderr.write(
-        `  ║  ${icon} ${pad(r.category, 12)} ${pad(scoreStr, 8)} ${pad(formatTimeShort(r.timeMs), 10)}║\n`,
-      );
-    }
-
-    process.stderr.write("  ╠══════════════════════════════════════╣\n");
-    process.stderr.write("  ║  🔗 bench.rapid42.com/agents         ║\n");
-    process.stderr.write("  ╚══════════════════════════════════════╝\n");
-    process.stderr.write("\n");
+    printAgentScorecard({
+      modelName: displayName,
+      framework,
+      results,
+      leaderboardUrl: "https://bench.rapid42.com",
+    });
   }
 }
 

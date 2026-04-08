@@ -1466,6 +1466,173 @@ export function binaryCheckAgentResearch(text: string): BinaryCheckResult {
 }
 
 /** Map of function names to their implementations */
+export function binaryCheckDesign(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Must have semantic HTML (not just divs)
+  const semanticElements = [
+    /<header/.test(text),
+    /<main/.test(text),
+    /<section/.test(text),
+    /<footer/.test(text),
+    /<nav/.test(text),
+  ];
+  const semanticCount = semanticElements.filter(Boolean).length;
+  const hasSemanticHtml = semanticCount >= 3;
+
+  // Has viewport meta tag (responsive)
+  const hasViewport =
+    /<meta[^>]+name=['']viewport['']/.test(text) ||
+    /viewport.*width.*device-width/.test(text.toLowerCase());
+
+  // Has at least 3 distinct sections
+  const sectionCount = (text.match(/<section/gi) ?? []).length;
+  const hasMinSections = sectionCount >= 3;
+
+  // Code comparison section with real code (not placeholder)
+  const hasCodeComparison =
+    (text.match(/```/g) ?? []).length >= 2 && // at least 2 code blocks
+    (/before|after|example|sample/i.test(text)); // mentions comparison context
+
+  // No external image dependencies
+  const hasExternalImages =
+    /<img[^>]+src=['']http['']/.test(text) ||
+    /<img[^>]+src=['']\/\//.test(text); // absolute URLs to external
+
+  // Anti-patterns check
+  const hasGradientMesh =
+    /gradient\s*mesh|mesh\s*gradient|background.*gradient.*blur/.test(textLower);
+  const hasPoweredByAI =
+    /powered\s*by\s*ai|ai-powered|ai-powered|built\s*with\s*ai/.test(textLower);
+  const hasStockIllustration =
+    /stock\s*photo|getty|shutterstock|unsplash/i.test(text) &&
+    !/unsplash\.com\/photos/.test(text); // allow legitimate Unsplash photo links
+
+  const antiPatternCount =
+    (hasGradientMesh ? 1 : 0) +
+    (hasPoweredByAI ? 1 : 0) +
+    (hasStockIllustration ? 1 : 0);
+
+  // Score calculation
+  let score = 0;
+  if (hasSemanticHtml) score += 2;
+  if (hasViewport) score += 1.5;
+  if (hasMinSections) score += 1.5;
+  if (hasCodeComparison) score += 2;
+  if (!hasExternalImages) score += 1;
+  score -= antiPatternCount * 1.5;
+
+  const adjustments: Record<string, number> = {};
+  if (score >= 7 && !hasExternalImages && antiPatternCount === 0) {
+    adjustments["correctness_floor"] = 7;
+  } else if (hasExternalImages || antiPatternCount >= 2) {
+    adjustments["quality_ceiling"] = 4;
+  }
+
+  return {
+    check_name: "design",
+    details: {
+      has_semantic_html: hasSemanticHtml,
+      semantic_element_count: semanticCount,
+      has_viewport: hasViewport,
+      section_count: sectionCount,
+      has_code_comparison: hasCodeComparison,
+      has_external_images: hasExternalImages,
+      has_gradient_mesh: hasGradientMesh,
+      has_powered_by_ai: hasPoweredByAI,
+      has_stock_illustration: hasStockIllustration,
+      anti_pattern_count: antiPatternCount,
+      raw_score: score,
+    },
+    adjustments,
+  };
+}
+
+export function binaryCheckMultiStep(text: string): BinaryCheckResult {
+  const textLower = text.toLowerCase();
+
+  // Step 1: Parse CSV to JSON
+  const hasStep1 =
+    /step\s*1|stept?1|first\s*step|parse.*csv|csv.*json|converted.*csv/i.test(textLower) ||
+    /users\.csv|step1.*parsed|parsed.*json/.test(textLower);
+
+  // Step 2: Validate records
+  const hasStep2 =
+    /step\s*2|stept?2|second\s*step|validate|validation|email.*valid|check.*email/i.test(textLower) ||
+    /step2.*validated|validated.*output/.test(textLower);
+
+  // Step 3: Transform (jq) — THE FAILURE POINT
+  const recognizedStep3Failure =
+    /step\s*3|stept?3|jq.*error|jq.*fail|jq.*version|version.*mismatch/.test(textLower) ||
+    /jq.*not\s*found|jq.*missing|jq.*installed/.test(textLower) ||
+    /\/usr\/bin\/jq|system.*jq|bypass.*jq/.test(textLower);
+
+  // Step 3 fix (the key differentiator — did they fix the jq issue?)
+  const fixedStep3 =
+    /\/usr\/bin\/jq|system.*jq|bypass|override.*path|remove.*fake.*jq|rm.*\/tmp\/bench/.test(textLower) ||
+    /brew.*install.*jq|install.*jq|python.*jq|jq.*python|implement.*without.*jq/.test(textLower) ||
+    /jq.*替代|python.*替代|implement.*jq|jq.*bypass|skip.*jq|fallback.*jq/.test(textLower);
+
+  // Step 4: Generate report
+  const hasStep4 =
+    /step\s*4|stept?4|fourth\s*step|report|summary|tier.*usage|average.*usage|upsell/i.test(textLower) ||
+    /step4.*report|markdown.*report|report\.md/.test(textLower);
+
+  // Step 5: Summary JSON
+  const hasStep5 =
+    /step\s*5|stept?5|fifth\s*step|summary.*json|aggregate.*stat|statistics|stats/i.test(textLower) ||
+    /step5.*summary|summary\.json/.test(textLower);
+
+  // Step 6: Archive
+  const hasStep6 =
+    /step\s*6|stept?6|sixth\s*step|archive|tar|gzip|compress|package/.test(textLower) ||
+    /step6.*archive|archive\.tar|\.tar\.gz/.test(textLower);
+
+  const stepsAttempted =
+    (hasStep1 ? 1 : 0) +
+    (hasStep2 ? 1 : 0) +
+    (recognizedStep3Failure || fixedStep3 ? 1 : 0) +
+    (hasStep4 ? 1 : 0) +
+    (hasStep5 ? 1 : 0) +
+    (hasStep6 ? 1 : 0);
+
+  const stepsCompleted =
+    (hasStep1 ? 1 : 0) +
+    (hasStep2 ? 1 : 0) +
+    (fixedStep3 ? 1 : 0) + // only counts if actually fixed
+    (hasStep4 ? 1 : 0) +
+    (hasStep5 ? 1 : 0) +
+    (hasStep6 ? 1 : 0);
+
+  const adjustments: Record<string, number> = {};
+  if (stepsCompleted >= 5 && fixedStep3) {
+    adjustments["correctness_floor"] = 8;
+  } else if (stepsCompleted >= 4 && stepsCompleted < 5) {
+    adjustments["correctness_floor"] = 6;
+  } else if (stepsAttempted >= 4 && !fixedStep3) {
+    // Tried but didn't fix step 3
+    adjustments["correctness_ceiling"] = 6;
+  } else if (stepsAttempted <= 2) {
+    adjustments["correctness_ceiling"] = 3;
+  }
+
+  return {
+    check_name: "multi_step",
+    details: {
+      has_step1: hasStep1,
+      has_step2: hasStep2,
+      recognized_step3_failure: recognizedStep3Failure,
+      fixed_step3_jq: fixedStep3,
+      has_step4: hasStep4,
+      has_step5: hasStep5,
+      has_step6: hasStep6,
+      steps_attempted: stepsAttempted,
+      steps_completed: stepsCompleted,
+    },
+    adjustments,
+  };
+}
+
 export const BINARY_CHECK_FUNCTIONS: Record<
   string,
   (text: string) => BinaryCheckResult
@@ -1500,6 +1667,9 @@ export const BINARY_CHECK_FUNCTIONS: Record<
   binary_check_supply_chain: binaryCheckSupplyChain,
   binary_check_prompt_injection: binaryCheckPromptInjection,
   binary_check_schema_design: binaryCheckSchemaDesign,
+  // Seed task fixes (was NULL in 0002)
+  binary_check_design: binaryCheckDesign,
+  binary_check_multi_step: binaryCheckMultiStep,
   // Agent bench checks
   binary_check_agent_auth: binaryCheckAgentAuth,
   binary_check_agent_ci_fix: binaryCheckAgentCiFix,

@@ -29,10 +29,17 @@ RUN OPTIONS:
   --api-key <key>       API key (optional)
   --cli <command>       CLI pipe mode (e.g. "claude -p")
   --specialist          Enable specialist prompts
+  --no-parallel         Disable parallel execution (default: parallel)
+  --retries <n>         Retry failed tasks N times (default: 3, use 0 to disable)
+  --retry-delay <secs>  Seconds to wait before retrying (default: 30)
   --category <cat>      Only run specific category
                         Valid: ${MODEL_CATEGORIES.join(", ")}
   --model-name <name>   Display name for leaderboard
   --framework <name>    Framework name (lm-studio, ollama, etc)
+  --temperature <n>     Sampling temperature 0.0-1.0 (default: 0.0 for reproducibility)
+  --max-tokens <n>      Max response tokens (default: 8192)
+  --runs <n>            Number of full benchmark runs (default: 1, use 3+ for CI)
+                        Aggregates scores across runs for statistical significance
   --server <url>        Bench server URL
   --json                Output results as JSON
 
@@ -62,9 +69,15 @@ async function handleModelRun(args: string[]): Promise<void> {
       "api-key": { type: "string" },
       cli: { type: "string" },
       specialist: { type: "boolean", default: false },
+      "no-parallel": { type: "boolean", default: false },
+      retries: { type: "string", default: "3" },
+      "retry-delay": { type: "string", default: "30" },
       category: { type: "string" },
       "model-name": { type: "string" },
       framework: { type: "string" },
+      temperature: { type: "string" },
+      "max-tokens": { type: "string" },
+      runs: { type: "string" },
       server: { type: "string" },
       json: { type: "boolean", default: false },
       help: { type: "boolean", default: false },
@@ -109,9 +122,15 @@ async function handleModelRun(args: string[]): Promise<void> {
     apiKey: values["api-key"],
     cli: values.cli,
     specialist: values.specialist ?? false,
+    parallel: values["no-parallel"] ? false : true,
+    retries: values.retries !== undefined ? parseInt(values.retries, 10) : 3,
+    retryDelay: parseInt(values["retry-delay"], 10) || 30,
     category: values.category,
     modelName: values["model-name"],
     framework: values.framework,
+    temperature: values.temperature !== undefined ? parseFloat(values.temperature) : 0.0,
+    maxTokens: values["max-tokens"] !== undefined ? parseInt(values["max-tokens"], 10) : undefined,
+    runs: values.runs !== undefined ? Math.max(1, parseInt(values.runs, 10)) : 1,
     server: values.server,
     json: values.json ?? false,
   };
@@ -120,7 +139,9 @@ async function handleModelRun(args: string[]): Promise<void> {
     options.modelName ?? options.model ?? options.cli ?? "unknown";
   const results = await runModelBench(options);
 
-  if (!options.json) {
+  // Multi-run already printed stats summary in the runner.
+  // For single-run, print the per-category scorecard.
+  if (!options.json && (options.runs ?? 1) === 1) {
     process.stderr.write("\n");
     printScorecard({
       modelName: displayName,
@@ -128,7 +149,9 @@ async function handleModelRun(args: string[]): Promise<void> {
       results,
       leaderboardUrl: "https://bench.rapid42.com",
     });
-  } else {
+  }
+
+  if (options.json) {
     printJson({
       modelName: displayName,
       framework: options.framework,

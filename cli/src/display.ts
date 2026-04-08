@@ -5,6 +5,8 @@
 
 export interface TaskResult {
   category: string;
+  taskId?: string;
+  runId?: string;
   score: number | null;
   maxScore: number;
   timeMs: number;
@@ -271,6 +273,8 @@ export function printJson(options: ScorecardOptions): void {
     total_tokens: options.results.reduce((sum, r) => sum + r.tokens, 0),
     results: options.results.map((r) => ({
       category: r.category,
+      task_id: r.taskId ?? null,
+      run_id: r.runId ?? null,
       score: r.score,
       max_score: r.maxScore,
       time_ms: r.timeMs,
