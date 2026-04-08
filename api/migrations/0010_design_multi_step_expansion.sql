@@ -25,7 +25,7 @@ VALUES (
 
 ## Context
 
-You're designing the API for **Miro clone** — a real-time collaborative whiteboard SaaS. Users can create boards, draw shapes, add text, and collaborate simultaneously with live cursors. Multiple users editing the same shape must not overwrite each other's changes.
+You''re designing the API for **Miro clone** — a real-time collaborative whiteboard SaaS. Users can create boards, draw shapes, add text, and collaborate simultaneously with live cursors. Multiple users editing the same shape must not overwrite each other''s changes.
 
 ## Requirements
 
@@ -68,11 +68,11 @@ Design the complete REST and WebSocket API for this product.
    - Conflict UI indicators
 
 4. **Scalability Notes**:
-   - How you'd handle 10K boards/org
+   - How you''d handle 10K boards/org
    - CDN strategy for assets
    - Database sharding/partitioning approach
 
-5. **What you'd cut for v1** — Realistically, what gets deprioritized?',
+5. **What you''d cut for v1** — Realistically, what gets deprioritized?',
   'HIDDEN',
   'binary_check_api_design',
   1,
@@ -162,7 +162,7 @@ Honest assessment of what worked in the response.
 - Blameless tone throughout — no "engineer X made a mistake"
 - Specific, not vague — "the 60-second Redis TTL caused stale balance data" not "a caching issue"
 - Action items have owners and timeframes
-- Technical accuracy is critical — don't invent facts not in the timeline',
+- Technical accuracy is critical — don''t invent facts not in the timeline',
   'HIDDEN',
   'binary_check_incident_postmortem',
   1,
@@ -182,7 +182,7 @@ VALUES (
 
 ## Context
 
-You're the platform engineer at **Metriq** — a B2B SaaS analytics platform. Customers pay based on data volume and seat count. They expect 99.5% availability and sub-2s dashboard load times. Your CEO just told you "we need proper SLOs before the next enterprise deal closes in 3 weeks."
+You''re the platform engineer at **Metriq** — a B2B SaaS analytics platform. Customers pay based on data volume and seat count. They expect 99.5% availability and sub-2s dashboard load times. Your CEO just told you "we need proper SLOs before the next enterprise deal closes in 3 weeks."
 
 You need to:
 1. Define SLOs that are ambitious but achievable
@@ -203,7 +203,7 @@ You need to:
 **Key user journeys:**
 1. Dashboard load (primary product) — user opens a dashboard, data queries run against ClickHouse
 2. Report generation — async job, user waits, gets notified when done
-3. Data ingestion — customer's data flows through Kafka → Flink → ClickHouse
+3. Data ingestion — customer''s data flows through Kafka → Flink → ClickHouse
 4. User management — SSO, seat management, billing
 
 **Current state:**
@@ -276,6 +276,7 @@ INSERT OR REPLACE INTO bench_tasks (id, bench_type, category, title, prompt, gra
 VALUES (
   'multi-step-debug',
   'multi-step',
+  'multi-step',
   'Multi-Step Debug — Cascading 3-Tier Failure',
   '# Task: Debug a Cascading System Failure
 
@@ -343,7 +344,7 @@ curl http://localhost:3000/api/dashboard/user_abc123
 Does it return data now? Or a different error?
 
 ### Step 5: Check ClickHouse (Downstream)
-If the cache fix didn't fully resolve it, the ClickHouse query might be failing.
+If the cache fix didn''t fully resolve it, the ClickHouse query might be failing.
 Check the ClickHouse connection. Table: `user_dashboards`. 
 Look for schema mismatches or permission issues.
 
@@ -380,6 +381,7 @@ INSERT OR REPLACE INTO bench_tasks (id, bench_type, category, title, prompt, gra
 VALUES (
   'multi-step-incident',
   'multi-step',
+  'multi-step',
   'Multi-Step Incident Response',
   '# Task: Full Incident Response Lifecycle
 
@@ -387,7 +389,7 @@ VALUES (
 
 PagerDuty fires at 02:47 AM. Alert: "payment_success_rate < 80% — CRITICAL"
 
-You're the on-call engineer. Your phone is ringing.
+You''re the on-call engineer. Your phone is ringing.
 
 ## The System (simplified)
 
@@ -418,7 +420,7 @@ payment-service logs show:
 ### Step 2: Investigate (10 minutes)
 - What changed recently? Check deployment history
 - Are failures concentrated in a specific region, payment method, or customer tier?
-- Is this Stripe's API or your integration?
+- Is this Stripe''s API or your integration?
 - Identify the blast radius: how many customers affected?
 
 ### Step 3: Mitigate (15 minutes)
@@ -450,7 +452,7 @@ All 5 steps completed with specific, detailed responses:
 
 ## What to output
 
-A detailed incident response document, step by step. Be specific — "Stripe's API was timing out because their EU region had elevated error rates" not "there was an outage."',
+A detailed incident response document, step by step. Be specific — "Stripe''s API was timing out because their EU region had elevated error rates" not "there was an outage."',
   'HIDDEN',
   'binary_check_multi_step',
   1,
@@ -462,6 +464,7 @@ A detailed incident response document, step by step. Be specific — "Stripe's A
 INSERT OR REPLACE INTO bench_tasks (id, bench_type, category, title, prompt, grading_key, binary_check_fn, active, version)
 VALUES (
   'multi-step-migration',
+  'multi-step',
   'multi-step',
   'Multi-Step Database Migration with Validation Gates',
   '# Task: Execute a Phased Database Migration
@@ -478,7 +481,7 @@ CREATE TABLE users_legacy (
   id INTEGER PRIMARY KEY,
   email VARCHAR(255),
   created_at TIMESTAMP,
-  plan VARCHAR(50)  -- 'free', 'pro', 'enterprise'
+  plan VARCHAR(50)  -- ''free'', ''pro'', ''enterprise''
 );
 ```
 
@@ -488,10 +491,10 @@ CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email VARCHAR(255) UNIQUE NOT NULL,
   created_at TIMESTAMP NOT NULL,
-  plan VARCHAR(50) NOT NULL DEFAULT 'free',
+  plan VARCHAR(50) NOT NULL DEFAULT ''free'',
   updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-  metadata JSONB DEFAULT '{}',
-  CONSTRAINT valid_plan CHECK (plan IN ('free', 'pro', 'enterprise', 'trial'))
+  metadata JSONB DEFAULT ''{}'',
+  CONSTRAINT valid_plan CHECK (plan IN (''free'', ''pro'', ''enterprise'', ''trial''))
 );
 ```
 
@@ -528,7 +531,7 @@ After migration completes:
 - Verify a sample of real user logins work with new table
 - Monitor error rates for 5 minutes
 
-### Step 6: Rollback Plan (document, don't execute)
+### Step 6: Rollback Plan (document, don''t execute)
 If something goes wrong after switchover:
 - Describe exactly how to rollback without losing the migrated data
 - How to point the app back at `users_legacy`
